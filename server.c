@@ -9,6 +9,7 @@
 #include <time.h>
 #include <ctype.h>
 #include <errno.h>
+#include <pthread.h>
 
 
 #include "sope.h"
@@ -16,13 +17,83 @@
 #include "constants.h"
 #include "log.c"
 
-int openLogText() {
-    int fd = open(SERVER_LOGFILE, O_WRONLY | O_APPEND | O_CREATE, S_IRWXU);
-    if (fd == -1) {
+
+typedef struct  {
+    int bankOfficesNo;
+    int  sLogFd;
+    bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
+    pthread_t bankOffices[MAX_BANK_OFFICES];
+
+} Server_t;
+
+
+int openLogText(Server_t * server) {
+    server->sLogFd = open(SERVER_LOGFILE, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
+    if (server->sLogFd == -1) {
         perror("Server Log File");
+        return -1;
     }
-    return fd;
+    return 0;
 }
+
+void createBankOffices(Server_t * server ) {
+    for  (int i = 1; i <= server->bankOfficesNo; i++) {
+        pthread_create(&(server->bankOffices[i-1]), NULL, NULL, NULL);
+        logBankOfficeOpen(server->sLogFd, i, server->bankOffices[i-1]);
+    }
+}
+
+void closeBankOffices(Server_t * server) {
+    for  (int i = 1; i <= server->bankOfficesNo; i++) {
+        pthread_join(server->bankOffices[i-1], NULL);
+        logBankOfficeClose(server->sLogFd, i, server->bankOffices[i-1]);
+    }
+}
+
+int closeLogText(Server_t *server) {
+    if (close(server->sLogFd) < 0) {
+        perror("Server Log File");
+        return -1;
+    }
+    return 0;
+}
+
+int createFifo() {
+    if (mkfifo(SERVER_FIFO_PATH, 0666))
+    {
+        if (errno == EEXIST)
+        {
+
+            unlink(SERVER_FIFO_PATH);
+            mkfifo(SERVER_FIFO_PATH, S_IRUSR | S_IWUSR);
+            return 0;
+        }
+        else
+        {
+            printf("Can't create FIFO\n");
+            return -1;
+        }
+    }
+}
+
+void openServerFifo() {
+    int fd = open(SERVER_FIFO_PATH, O_RDONLY);
+    if (fd < 0)
+    {
+        exit(1);
+    }
+}
+
+void closeServerFifo() {
+
+    if (unlink(SERVER_FIFO_PATH) < 0)
+    {
+        printf("Error destryoing fifo\n");
+        exit(2);
+    }
+}
+
+
 
 int main(int argc, char **argv)
 {
@@ -32,37 +103,21 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    Server_t * server = (Server_t *)malloc(sizeof(Server_t));
+    
+    if (openLogText(server) == -1) {
+        exit(3);
+    }
+
     int opcode = 1;
 
-    if (mkfifo(SERVER_FIFO_PATH, 0666))
-    {
-        if (errno == EEXIST)printf("FIFO '/tmp/requests' already exists\n");
-            exit(1);
-        {
-
-            unlink(SERVER_FIFO_PATH);
-            mkfifo(SERVER_FIFO_PATH, S_IRUSR | S_IWUSR);
-            
-        }
-        else
-        {
-            printf("Can't create FIFO\n");
-            exit(2);
-        }
+    if (createFifo() == -1) {
+        return 1;
     }
 
-    int fd = open(SERVER_FIFO_PATH, O_RDONLY);
-    if (fd < 0)
-    {
-        exit(1);
-    }
-
-    openLogText();
-    // int fd = open(SERVER_FIFO_PATH, O_WRONLY);
-
-    // if (fd < 0) {
-    //     exit(54);
-    // }
+    openServerFifo();
+    
+    createBankOffices(server);
 
     int bank_offices_no = atoi(argv[1]);
 
@@ -72,30 +127,26 @@ int main(int argc, char **argv)
 
     logAccountCreation(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &admin_account);
 
-    for (int i = 1; i <= bank_offices_nprintf("FIFO '/tmp/requests' already exists\n");
-            exit(1);o; i++)
-    {
-        logBankOfficeOpen(STDOUT_FILENO, i, i);
-    }
+   
 
     tlv_request_t tlv;
+    int n;
 
     do
     {
-        n = read(fd, &tlv, sizeof(tlv_request_t));
+        n = read(server->sLogFd, &tlv, sizeof(tlv_request_t));
 
     } while (n !=0);
 
 
+     closeBankOffices(server);
 
-    for (int i = 1; i <= bank_offices_no; i++)
-    {
-        logBankOfficeClose(STDOUT_FILENO, i, i);
+
+    if (closeLogText(server) == -1) {
+        exit(765);
     }
 
-    if (unlink(SERVER_FIFO_PATH) < 0)
-    {
-        printf("Error destryoing fifo\n");
-        exit(2);
-    }
+    closeServerFifo();
+
+    
 }
