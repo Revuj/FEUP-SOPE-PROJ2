@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 
     write(fd, &tlv, sizeof(tlv));
 
-    unlink(fifoName);
+    unlink(SERVER_FIFO_PATH);
     // srand(time(NULL));
     // pid_t pid = getpid();
     // char fifoName[20] = USER_FIFO_PATH_PREFIX;

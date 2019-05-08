@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "sope.h"
 #include "types.h"
@@ -20,6 +21,22 @@ int main(int argc, char **argv)
     {
         printf("Usage: ./server <number of bank offices> <admin password>");
         return 1;
+    }
+
+    if (mkfifo(SERVER_FIFO_PATH, 0666)) {
+        if (errno==EEXIST) {
+            printf("FIFO '/tmp/requests' already exists\n");
+            exit(1);
+        } 
+        else {
+            printf("Can't create FIFO\n");
+            exit(2);
+        } 
+    }
+        
+    int fd = open(SERVER_FIFO_PATH,0444);
+    if (fd < 0) {
+        exit(1);
     }
 
     int bank_offices_no = atoi(argv[1]);
@@ -38,5 +55,10 @@ int main(int argc, char **argv)
 
     for (int i = 1; i <= bank_offices_no; i++) {
          logBankOfficeClose(STDOUT_FILENO, i, i);
+    }
+
+    if (unlink(SERVER_FIFO_PATH) < 0) {
+        printf("Error destryoing fifo\n");
+        exit(2);
     }
 }
