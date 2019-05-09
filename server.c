@@ -131,13 +131,22 @@ int main(int argc, char **argv)
 
    
 
-    tlv_request_t tlv;
-    int n = 1;
+    tlv_request_t request;
+    tlv_reply_t reply;
+
+    int n = 0;
 
     do
     {
-        n = read(server->sLogFd, &tlv, sizeof(tlv_request_t));
-    } while (n !=0);
+        n = read(server->sLogFd, &request, sizeof(tlv_request_t));
+        if (n > 0) {
+            // reply.type = request.type;
+            // reply.length = request.length;
+            // reply.value = reply.value;
+            // logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
+            printf("n = %d", n);
+        }
+    } while (true);
 
 
     closeBankOffices(server);

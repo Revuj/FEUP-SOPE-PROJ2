@@ -41,41 +41,41 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     {
     }
 
-    tlv_request_t tlv;
-    tlv.type = atoi(argv[4]);
+    tlv_request_t request;
+    request.type = atoi(argv[4]);
 
     //fill header
-    tlv.value.header.pid = getpid();
-    tlv.value.header.account_id = atoi(argv[1]);
-    strcpy(tlv.value.header.password, argv[2]);
-    tlv.value.header.op_delay_ms = atoi(argv[3]);
+    request.value.header.pid = getpid();
+    request.value.header.account_id = atoi(argv[1]);
+    strcpy(request.value.header.password, argv[2]);
+    request.value.header.op_delay_ms = atoi(argv[3]);
 
     uint32_t id;
 
-    switch (tlv.type)
+    switch (request.type)
     {
     case OP_CREATE_ACCOUNT:
         id = atoi(strtok(argv[5], " "));
-        tlv.value.create.account_id = id;
+        request.value.create.account_id = id;
         uint32_t balance = atoi(strtok(argv[5], " "));
-        tlv.value.create.balance = balance;
-        strcpy(tlv.value.create.password, argv[5]);
-        //tlv.length = 13;
+        request.value.create.balance = balance;
+        strcpy(request.value.create.password, argv[5]);
+        //request.length = 13;
         break;
     case OP_BALANCE:
         break;
     case OP_TRANSFER:
         id = atoi(strtok(argv[5], " "));
-        tlv.value.transfer.account_id = id;
-        tlv.value.transfer.amount = atoi(argv[5]);
+        request.value.transfer.account_id = id;
+        request.value.transfer.amount = atoi(argv[5]);
         break;
     case OP_SHUTDOWN:
         break;
     }
 
-    write(fd, &tlv, sizeof(tlv));
-    logRequest(STDOUT_FILENO, id,&tlv);
-    unlink(SERVER_FIFO_PATH);
+    write(fd, &request, sizeof(request));
+    logRequest(STDOUT_FILENO, id,&request);
+    close(fd);
     // srand(time(NULL));
     // pid_t pid = getpid();
     // char fifoName[20] = USER_FIFO_PATH_PREFIX;
