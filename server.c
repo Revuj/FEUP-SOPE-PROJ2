@@ -76,13 +76,14 @@ int createFifo() {
     }
 }
 
-void openServerFifo() {
+int openServerFifo() {
     int fd = open(SERVER_FIFO_PATH, O_RDONLY);
 
     if (fd < 0)
     {
         exit(1);
     }
+    return fd;
 }
 
 void closeServerFifo() {
@@ -117,7 +118,7 @@ int main(int argc, char **argv)
     }
 
 
-    openServerFifo();
+    int fd= openServerFifo();
     
     createBankOffices(server);
 
@@ -138,7 +139,7 @@ int main(int argc, char **argv)
 
     do
     {
-        n = read(server->sLogFd, &request, sizeof(tlv_request_t));
+        n = read(fd, &request, sizeof(tlv_request_t));
         if (n > 0) {
             // reply.type = request.type;
             // reply.length = request.length;
@@ -146,6 +147,7 @@ int main(int argc, char **argv)
             // logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
             printf("n = %d", n);
         }
+        
     } while (true);
 
 
