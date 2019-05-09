@@ -11,12 +11,12 @@
 #include <errno.h>
 #include <pthread.h>
 
-
 #include "sope.h"
 #include "types.h"
 #include "constants.h"
 #include "log.c"
 
+pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct  {
     int bankOfficesNo;
@@ -95,7 +95,15 @@ void closeServerFifo() {
     }
 }
 
-
+//função a ser alterada quando tivermos o buffer de contas
+void fillReply(tlv_reply_t * reply, tlv_request_t request) {
+    reply->type = request.type;
+    reply->value.header.account_id = request.value.header.account_id;
+    reply->value.header.ret_code = 69;
+    reply->value.balance.balance = 500; // a mudar
+    reply->value.transfer.balance = 100;
+    reply->value.shutdown.active_offices = 34;
+}
 
 int main(int argc, char **argv)
 {
@@ -141,13 +149,11 @@ int main(int argc, char **argv)
     {
         n = read(fd, &request, sizeof(tlv_request_t));
         if (n > 0) {
-            // reply.type = request.type;
-            // reply.length = request.length;
-            // reply.value = reply.value;
-            // logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
-            printf("n = %d", n);
+            fillReply(&reply, request);
+            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
         }
-        
+        sleep(1);     
+
     } while (true);
 
 

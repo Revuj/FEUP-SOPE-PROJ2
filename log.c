@@ -90,7 +90,7 @@ int logReply(int fd, int id, const tlv_reply_t *reply) {
     case OP_CREATE_ACCOUNT: return atomicPrintf(fd, "%s\n", logBaseReplyInfo(id, buffer, reply));
     case OP_BALANCE:
       return atomicPrintf(fd, "%s %*d€\n", logBaseReplyInfo(id, buffer, reply),
-                          WIDTH_BALANCE, reply->value.balance.balance);
+                          WIDTH_BALANCE, 5);
     case OP_TRANSFER:
       return atomicPrintf(fd, "%s %*d€\n", logBaseReplyInfo(id, buffer, reply),
                           WIDTH_BALANCE, reply->value.transfer.balance);
@@ -173,12 +173,13 @@ static char *logBaseRequestInfo(int id, char *str, const tlv_request_t *request)
 
 static char *logBaseReplyInfo(int id, char *str, const tlv_reply_t *reply) {
   const bool received = (id == getpid());
-
+  printf("oi boy\n");
   snprintf(str, PIPE_BUF, "%c - %0*d - [%*d bytes] %0*d %*s %*s", (received ? 'R' : 'E'),
            WIDTH_ID, id, WIDTH_TLV_LEN, reply->length,
            WIDTH_ACCOUNT, reply->value.header.account_id,
            WIDTH_OP, OP_TYPE_STR[reply->type], WIDTH_RC, RC_STR[reply->value.header.ret_code]);
 
+  printf("bye son\n");
   return str;
 }
 
