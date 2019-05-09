@@ -8,6 +8,12 @@
 #include "constants.h"
 #include "types.h"
 #include <time.h>
+
+#include "sope.h"
+#include "types.h"
+#include "constants.h"
+#include "log.c"
+
 #define LENGTH_NAME 20
 
 static char hexa[15] = {"123456789abcdef"};
@@ -23,7 +29,9 @@ void generateRandomSal(char *sal)
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
 
-    int fd = open(SERVER_FIFO_PATH, 0660);
+   
+
+    int fd = open(SERVER_FIFO_PATH, O_WRONLY);
     if (fd < 0)
     {
         exit(1);
@@ -66,7 +74,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     }
 
     write(fd, &tlv, sizeof(tlv));
-
+    logRequest(STDOUT_FILENO, id,&tlv);
     unlink(SERVER_FIFO_PATH);
     // srand(time(NULL));
     // pid_t pid = getpid();

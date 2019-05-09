@@ -59,7 +59,7 @@ int closeLogText(Server_t *server) {
 }
 
 int createFifo() {
-    if (mkfifo(SERVER_FIFO_PATH, 0666))
+    if (mkfifo(SERVER_FIFO_PATH, S_IRUSR | S_IWUSR))
     {
         if (errno == EEXIST)
         {
@@ -70,7 +70,7 @@ int createFifo() {
         }
         else
         {
-            printf("Can't create FIFO\n");
+            perror("FIFO");
             return -1;
         }
     }
@@ -78,6 +78,7 @@ int createFifo() {
 
 void openServerFifo() {
     int fd = open(SERVER_FIFO_PATH, O_RDONLY);
+
     if (fd < 0)
     {
         exit(1);
@@ -88,7 +89,7 @@ void closeServerFifo() {
 
     if (unlink(SERVER_FIFO_PATH) < 0)
     {
-        printf("Error destryoing fifo\n");
+        perror("FIFO");
         exit(2);
     }
 }
@@ -115,6 +116,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
+
     openServerFifo();
     
     createBankOffices(server);
@@ -130,16 +132,15 @@ int main(int argc, char **argv)
    
 
     tlv_request_t tlv;
-    int n;
+    int n = 1;
 
     do
     {
         n = read(server->sLogFd, &tlv, sizeof(tlv_request_t));
-
     } while (n !=0);
 
 
-     closeBankOffices(server);
+    closeBankOffices(server);
 
 
     if (closeLogText(server) == -1) {
@@ -148,5 +149,4 @@ int main(int argc, char **argv)
 
     closeServerFifo();
 
-    
 }
