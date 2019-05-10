@@ -1,6 +1,6 @@
 ### VisualStudioCode ###
 .vscode/*
-*.bin
+.vscode/ipch/
 
 ### VisualStudioCode Patch ###
 # Ignore all local history of files
