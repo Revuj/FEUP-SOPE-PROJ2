@@ -137,6 +137,14 @@ int accountExists(Server_t * server, int id) {
     return 0;
 }
 
+void getSalt(char * string) {
+    char salt[SALT_LEN];
+    for(int i = 0; i < SALT_LEN; i++) {
+        sprintf(salt + i, "%x", rand() % 16);
+    }
+    strcpy(string, salt);
+}
+
 //a alterar
 int checkBalance(Server_t * server, int id) {
     return server->bankAccounts[id].balance;
