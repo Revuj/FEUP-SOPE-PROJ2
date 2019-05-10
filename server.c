@@ -10,12 +10,19 @@
 #include <ctype.h>
 #include <errno.h>
 #include <pthread.h>
-#include<sys/mman.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "sope.h"
 #include "types.h"
 #include "constants.h"
 #include "log.c"
+
+#define READ 0
+#define WRITE 1
+#define PIPE_ERROR_RETURN -1
+#define FORK_ERROR_RETURN -1
 
 typedef struct {
     pthread_mutex_t bufferLock;
@@ -119,15 +126,83 @@ void fillReply(tlv_reply_t * reply, tlv_request_t request) {
     reply->value.shutdown.active_offices = 34;
 }
 
+void removeNewLine(char *line)
+{  
+    char *pos;
+    if ((pos=strchr(line, '\n')) != NULL)
+        *pos = '\0';
+}
+
+void generateSalt(char * string) {
+    char salt[SALT_LEN];
+    for(int i = 0; i < SALT_LEN; i++) {
+        sprintf(salt + i, "%x", rand() % 16);
+    }
+    strcpy(string, salt);
+}
+
 //a alterar
-bank_account_t * createBankAccount(Server_t * server, int id, int balance) {
+void generateHash(const char *name, char *fileHash, char *algorithm)
+{
+    char command[30 + HASH_LEN + MAX_PASSWORD_LEN + 1] = "echo -n ";
+    strcat(command, name);
+    strcat(command, " | sha256sum");
+    FILE * fpin = popen(command, "r");
+    fgets(fileHash, HASH_LEN + 1, fpin);
+
+    //será necessário fazer um coprocesso (o exec não funciona por causa do simbolo de pipe: |)
+
+
+    // int fd[2];
+    // pid_t pid;
+
+    // if (pipe(fd) == PIPE_ERROR_RETURN)
+    // {
+    //     perror("Pipe Error");
+    //     exit(1);
+    // }
+
+    // pid = fork();
+
+    // if (pid > 0)
+    // {
+    //     close(fd[WRITE]);
+    //     wait(NULL);
+    //     char fileInfo[300];
+    //     read(fd[READ], fileInfo, 300);
+    //     char *fileHashCopy = strtok(fileInfo, " ");
+    //     //removeNewLine(fileHashCopy);
+    //     strcpy(fileHash, fileHashCopy);
+    //     close(fd[READ]);
+    // }
+    // else if (pid == FORK_ERROR_RETURN)
+    // {
+    //     perror("Fork error");
+    //     exit(2);
+    // }
+    // else
+    // {
+    //     close(fd[READ]);
+    //     dup2(fd[WRITE], STDOUT_FILENO);
+    //     execl("echo", "echo", "-n", "foobar", "|", algorithm, NULL);
+    //     close(fd[WRITE]);
+    // }
+
+}
+
+//a alterar
+bank_account_t * createBankAccount(Server_t * server, int id, int balance, char * password) {
     bank_account_t * account = malloc(sizeof(bank_account_t));
     account->account_id = id;
     account->balance = balance;
-    //account.hash
-    //account.salt
+    generateSalt(account->salt);
+    char hashInput[HASH_LEN + MAX_PASSWORD_LEN + 1];
+    strcpy(hashInput, password);
+    strcat(hashInput, account->salt);
+    generateHash(hashInput, account->hash, "sha256sum");
     server->bankAccounts[id] = *account;
     logAccountCreation(STDOUT_FILENO, id, account);
+
     return account;
 }
 
@@ -135,14 +210,6 @@ int accountExists(Server_t * server, int id) {
     if (server->bankAccounts + id == NULL)
         return -1;
     return 0;
-}
-
-void getSalt(char * string) {
-    char salt[SALT_LEN];
-    for(int i = 0; i < SALT_LEN; i++) {
-        sprintf(salt + i, "%x", rand() % 16);
-    }
-    strcpy(string, salt);
 }
 
 //a alterar
@@ -171,7 +238,7 @@ int transference(Server_t * server, int senderId, int receiverId, int balance) {
     return 0;    
 }
 
-Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
+Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo, char * adminPassword) {
     Server_t * server = (Server_t *)malloc(sizeof(Server_t));
 
     int logFd = openLogText(logFileName);
@@ -189,14 +256,16 @@ Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
         return NULL;
 
 
-    bank_account_t * admin_account = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
+    bank_account_t * admin_account = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE, adminPassword);
 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
-    server->adminAccount = admin_account;  
+    server->adminAccount = admin_account;
 
     createBankOffices(server);
+
+    free(admin_account);
 
     return server;
 }
@@ -220,8 +289,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    srand(time(NULL));
 
-    Server_t * server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, atoi(argv[1]));
+
+    Server_t * server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, atoi(argv[1]), argv[2]);
     if (server == NULL) {
         perror("Server Initialization");
         return 1;
