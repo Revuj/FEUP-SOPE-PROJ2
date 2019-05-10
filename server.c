@@ -30,10 +30,11 @@ typedef struct  {
     bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
     pthread_t bankOffices[MAX_BANK_OFFICES];
     Shared_memory * shm;
+    bank_account_t * adminAccount;
 } Server_t;
 
 Shared_memory * initSharedMemory(char * shmName, int shmSize) {
-    int shmfd = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0660);
+    int shmfd = shm_open(shmName, O_RDWR | O_CREAT, 0660);
     if (shmfd < 0) {
         perror("Shared Memory");
         return NULL;
@@ -135,8 +136,15 @@ void fillReply(tlv_reply_t * reply, tlv_request_t request) {
     reply->value.shutdown.active_offices = 34;
 }
 
-void * createAccount() {
-
+//a alterar
+bank_account_t * createBankAccount(int id, int balance) {
+    bank_account_t * account = malloc(sizeof(bank_account_t));
+    account->account_id = id;
+    account->balance = balance;
+    //account.hash
+    //account.salt
+    logAccountCreation(STDOUT_FILENO, id, account);
+    return account;
 }
 
 Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
@@ -162,22 +170,33 @@ Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
     if (shm == NULL)
         return NULL;
 
-    
+    bank_account_t * admin_account = createBankAccount(ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
+
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
-    server->shm = shm;  
-
-
-    bank_account_t admin_account;
-    admin_account.account_id = ADMIN_ACCOUNT_ID;
-    admin_account.balance = ADMIN_ACCOUNT_BALLANCE;
-    logAccountCreation(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &admin_account);
-
+    server->shm = shm;
+    server->adminAccount = admin_account;  
 
     createBankOffices(server);
 
     return server;
+}
+
+void closeServer(Server_t * server) {
+    closeBankOffices(server);
+
+
+    if (closeLogText(server) == -1) {
+        exit(765);
+    }
+
+    closeServerFifo();
+
+    if (munmap(server->shm, sizeof(Shared_memory)) < 0)   
+    {     perror("Failure in munmap()");
+         exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char **argv)
@@ -209,16 +228,5 @@ int main(int argc, char **argv)
         }
         sleep(1);     
 
-    } while (true);
-
-
-    closeBankOffices(server);
-
-
-    if (closeLogText(server) == -1) {
-        exit(765);
-    }
-
-    closeServerFifo();
-
+    } while (1);
 }
