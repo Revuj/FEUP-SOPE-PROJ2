@@ -9,7 +9,7 @@
 #include "types.h"
 #include <time.h>
 #include <errno.h>
-
+#include <signal.h>
 
 #include "sope.h"
 #include "types.h"
@@ -39,6 +39,42 @@ void generateRandomSal(char *sal)
     {
         strcat(sal, &hexa[rand() % 15]);
     }
+}
+
+client_t * clientWrapper(client_t * client) {
+    static client_t * compClient;
+    if (client == NULL) {
+
+    }
+    else {
+        compClient = client;
+    }
+
+    return compClient;
+}
+
+
+
+void alarmHandler(int signo) {
+   destroyClient(clientWrapper(NULL));
+}
+
+void cancelAlarm() {
+    alarm(0);
+}
+
+int installAlarm() {
+    struct sigaction action;
+    
+    action.sa_flags = 0;
+    sigemptyset(&action.sa_mask);
+    action.sa_handler = alarmHandler;
+
+    if(sigaction(SIGALRM, &action, NULL) == -1) {
+        return 1;
+    }
+
+    return 0;
 }
 
 client_t * createClient() {
@@ -102,6 +138,8 @@ int readReply(client_t * client) {
             break;
         }
     }
+
+    cancelAlarm();
     return 0;
 }
 
@@ -206,6 +244,10 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     client_t * client = createClient();
 
     openRequestFifo(client, SERVER_FIFO_PATH);
+    
+    if(installAlarm() == 1) {
+        return 1;
+    }
 
     if(client->fifoRequest < 0) {
         return 1;
@@ -235,7 +277,8 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 
     }
     sendRequest(client);
-
+    clientWrapper(client);
+    alarm(FIFO_TIMEOUT_SECS);
     logRequest(STDOUT_FILENO, client->request->value.create.account_id,client->request);
    
     destroyClient(client);
