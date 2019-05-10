@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <sys/mman.h>
 
+
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
@@ -256,7 +257,7 @@ bool validateLogin(Server_t *server, int id, char *password)
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
     generateHash(hashInput, hash, "sha256sum");
 
-    if (accountExists || strcmp(hash, server->bankAccounts[id].hash))
+    if (accountExists(server, id) || strcmp(hash, server->bankAccounts[id].hash))
         return true;
     return false;
 }

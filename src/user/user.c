@@ -5,15 +5,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
-#include "types.h"
 #include <time.h>
 #include <errno.h>
 #include <signal.h>
 
-#include "sope.h"
-#include "types.h"
-#include "constants.h"
-#include "log.c"
+#include "../sope.h"
+#include "../types.h"
+#include "../constants.h"
+#include "../log.c"
 
 #define LENGTH_NAME 20
 #define FIFO_LENGTH 20
