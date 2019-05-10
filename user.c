@@ -52,14 +52,14 @@ client_t * createClient() {
     return client;
 }
 
-void openRequestFifo(client_t * client) {
-    client->fifoRequest = open(SERVER_FIFO_PATH, O_WRONLY);
+void openRequestFifo(client_t * client, char *fifoName) {
+    client->fifoRequest = open(fifoName, O_WRONLY);
     
 }
 
-int createReplyFifo(client_t * client) {
+int createReplyFifo(client_t * client, char * fifoPrefix) {
     
-    if (sprintf(client->nameFifoAnswer,USER_FIFO_PATH_PREFIX"%d",  client->request->value.header.pid) < 0) {
+    if (sprintf(client->nameFifoAnswer,"%s%d",fifoPrefix,  client->request->value.header.pid) < 0) {
         return 1;
     }
     if (mkfifo(client->nameFifoAnswer ,S_IRUSR | S_IWUSR) < 0) {
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 
     client_t * client = createClient();
 
-    openRequestFifo(client);
+    openRequestFifo(client, SERVER_FIFO_PATH);
 
     if(client->fifoRequest < 0) {
         return 1;
