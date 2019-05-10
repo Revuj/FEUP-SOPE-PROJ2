@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "type_traits": "c",
+        "constants.h": "c",
+        "errno.h": "c"
+    }
+}
