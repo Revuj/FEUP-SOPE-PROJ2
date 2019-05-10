@@ -137,14 +137,42 @@ void fillReply(tlv_reply_t * reply, tlv_request_t request) {
 }
 
 //a alterar
-bank_account_t * createBankAccount(int id, int balance) {
+bank_account_t * createBankAccount(Server_t * server, int id, int balance) {
     bank_account_t * account = malloc(sizeof(bank_account_t));
     account->account_id = id;
     account->balance = balance;
     //account.hash
     //account.salt
+    server->bankAccounts[id] = *account;
     logAccountCreation(STDOUT_FILENO, id, account);
     return account;
+}
+
+//a alterar
+int checkBalance(Server_t * server, int id) {
+    return server->bankAccounts[id].balance;
+}
+
+void addBalance(Server_t * server, int id, int balance) {
+    server->bankAccounts[id].balance += balance;
+}
+
+int subtractBalance(Server_t * server, int id, int balance) {
+    
+    int newBalance = server->bankAccounts[id].balance - balance;
+    if (newBalance < 0)
+        return -1;
+    server->bankAccounts[id].balance -= balance;
+    return 0;
+}
+
+int transference(Server_t * server, int senderId, int receiverId, int balance) {
+
+    if (subtractBalance(server, senderId, balance) < 0)
+        return -1; 
+
+    addBalance(server, receiverId, balance);
+    return 0;    
 }
 
 Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
@@ -170,7 +198,7 @@ Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
     if (shm == NULL)
         return NULL;
 
-    bank_account_t * admin_account = createBankAccount(ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
+    bank_account_t * admin_account = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
@@ -229,4 +257,6 @@ int main(int argc, char **argv)
         sleep(1);     
 
     } while (1);
+
+    closeServer(server);
 }
