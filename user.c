@@ -17,6 +17,7 @@
 #include "log.c"
 
 #define LENGTH_NAME 20
+#define FIFO_LENGTH 20
 
 
 typedef struct {
@@ -45,6 +46,7 @@ client_t * createClient() {
     client->request = (tlv_request_t *)malloc(sizeof(tlv_request_t));
     client->reply=(tlv_reply_t *)malloc(sizeof(tlv_reply_t));
     client->request->value.header.pid = getpid();
+    client->nameFifoAnswer = (char *) malloc(sizeof(FIFO_LENGTH));
 
 
     return client;
@@ -56,20 +58,20 @@ void openRequestFifo(client_t * client) {
 }
 
 int createReplyFifo(client_t * client) {
-    char *name = NULL;
-    if (asprintf(&name,USER_FIFO_PATH_PREFIX"%d",  client->request->value.header.pid) < 0) {
+    
+    if (sprintf(client->nameFifoAnswer,USER_FIFO_PATH_PREFIX"%d",  client->request->value.header.pid) < 0) {
         return 1;
     }
-    if (mkfifo(name ,S_IRUSR | S_IWUSR) < 0) {
+    if (mkfifo(client->nameFifoAnswer ,S_IRUSR | S_IWUSR) < 0) {
         if (errno == EEXIST) {
-            unlink(name);
-            mkfifo(name, S_IRUSR | S_IWUSR);
+            unlink(client->nameFifoAnswer);
+            mkfifo(client->nameFifoAnswer, S_IRUSR | S_IWUSR);
         } 
         else {
             return 2;
         }
     }
-    client->nameFifoAnswer = name;
+    
     return 0;
 }
 
