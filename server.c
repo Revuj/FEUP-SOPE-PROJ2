@@ -27,13 +27,13 @@ typedef struct  {
     int bankOfficesNo;
     int sLogFd;
     int fifoFd;
-    //bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
-    //pthread_t bankOffices[MAX_BANK_OFFICES];
-    //Shared_memory * shm;
+    bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
+    pthread_t bankOffices[MAX_BANK_OFFICES];
+    Shared_memory * shm;
 } Server_t;
 
 Shared_memory * initSharedMemory(char * shmName, int shmSize) {
-    int shmfd = shm_open(shmName, O_RDWR, 0660);
+    int shmfd = shm_open(shmName, O_RDWR | O_CREAT | O_EXCL, 0660);
     if (shmfd < 0) {
         perror("Shared Memory");
         return NULL;
@@ -65,17 +65,17 @@ void * runBankOffice(void * arg) {
 }
 
 void createBankOffices(Server_t * server ) {
-    // for  (int i = 1; i <= server->bankOfficesNo; i++) {
-    //     pthread_create(&(server->bankOffices[i-1]), NULL, runBankOffice, NULL);
-    //     logBankOfficeOpen(server->sLogFd, i, server->bankOffices[i-1]);
-    // }
+    for  (int i = 1; i <= server->bankOfficesNo; i++) {
+        pthread_create(&(server->bankOffices[i-1]), NULL, runBankOffice, NULL);
+        logBankOfficeOpen(server->sLogFd, i, server->bankOffices[i-1]);
+    }
 }
 
 void closeBankOffices(Server_t * server) {
-    // for  (int i = 1; i <= server->bankOfficesNo; i++) {
-    //     pthread_join(server->bankOffices[i-1], NULL);
-    //     logBankOfficeClose(server->sLogFd, i, server->bankOffices[i-1]);
-    // }
+    for  (int i = 1; i <= server->bankOfficesNo; i++) {
+        pthread_join(server->bankOffices[i-1], NULL);
+        logBankOfficeClose(server->sLogFd, i, server->bankOffices[i-1]);
+    }
 }
 
 int closeLogText(Server_t *server) {
@@ -135,6 +135,10 @@ void fillReply(tlv_reply_t * reply, tlv_request_t request) {
     reply->value.shutdown.active_offices = 34;
 }
 
+void * createAccount() {
+
+}
+
 Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
     Server_t * server = (Server_t *)malloc(sizeof(Server_t));
 
@@ -152,18 +156,26 @@ Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
     if (fifoFd < 0)
         return NULL;
     
-    createBankOffices(server);
+    
+    Shared_memory * shm = initSharedMemory(SHM_NAME, sizeof(Shared_memory));
 
+    if (shm == NULL)
+        return NULL;
+
+    
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
-
     server->bankOfficesNo = bankOfficesNo;
+    server->shm = shm;  
+
 
     bank_account_t admin_account;
     admin_account.account_id = ADMIN_ACCOUNT_ID;
     admin_account.balance = ADMIN_ACCOUNT_BALLANCE;
-
     logAccountCreation(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &admin_account);
+
+
+    createBankOffices(server);
 
     return server;
 }
