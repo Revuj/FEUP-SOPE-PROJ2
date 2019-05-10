@@ -184,7 +184,7 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
     // {
     //     close(fd[READ]);
     //     dup2(fd[WRITE], STDOUT_FILENO);
-    //     execl("echo", "echo", "-n", "foobar", "|", algorithm, NULL);
+    //     execl("echo", "echo", "-n", "foobar", "|", algorithm, NULL); 
     //     close(fd[WRITE]);
     // }
 
@@ -206,10 +206,20 @@ bank_account_t * createBankAccount(Server_t * server, int id, int balance, char 
     return account;
 }
 
-int accountExists(Server_t * server, int id) {
+bool accountExists(Server_t * server, int id) {
     if (server->bankAccounts + id == NULL)
-        return -1;
-    return 0;
+        return false;
+    return true;
+}
+
+bool validateLogin(Server_t * server, int id, char * password) {
+    char hash[HASH_LEN + 1];
+    char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
+    generateHash(hashInput, hash, "sha256sum");
+
+    if (accountExists || strcmp(hash, server->bankAccounts[id].hash))
+        return true;
+    return false;
 }
 
 //a alterar
@@ -313,6 +323,6 @@ int main(int argc, char **argv)
         sleep(1);     
 
     } while (1);
-
+    
     closeServer(server);
 }
