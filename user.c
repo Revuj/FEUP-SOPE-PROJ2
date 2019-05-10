@@ -121,11 +121,9 @@ int destroyClient(client_t *client) {
 }
 
 
-int createAccountRequest(client_t * client, int args, char ** argValues) {
+int createAccountRequest(client_t * client, char ** argValues) {
 
-    if (args != 5 && args != 6) {
-        return 1;
-    }
+   
     /*fill enum*/
     client->request->type = OP_CREATE_ACCOUNT;
 
@@ -152,10 +150,8 @@ int createAccountRequest(client_t * client, int args, char ** argValues) {
     return 0;
 }
 
-int createBalanceRequest(client_t * client, int args, char ** argValues) {
-      if (args != 5 && args != 6) {
-        return 1;
-    }
+int createBalanceRequest(client_t * client, char ** argValues) {
+    
     /*fill enum*/
     client->request->type = OP_BALANCE;
 
@@ -165,11 +161,48 @@ int createBalanceRequest(client_t * client, int args, char ** argValues) {
     return 0;
 }
 
+int createTransferRequest(client_t * client,char ** argValues) {
+    client->request->type = OP_TRANSFER;
+    client->request->value.header.account_id = atoi(argValues[1]);
+    strcpy(client->request->value.header.password, argValues[2]);
+    client->request->value.header.op_delay_ms = atoi(argValues[3]);
+   
+   /*fill union*/
+     char *token;
+   
+    token = strtok(argValues[5], " ");
+    client->request->value.transfer.account_id =atoi(token);
+    token = strtok(NULL," ");
+    client->request->value.transfer.amount = atoi(token);
 
+    return 0;
+
+}
+
+int createShutDownRequest(client_t * client,char ** argValues) {
+    int ID = atoi(argValues[1]);
+
+    if(ID!=0) { /*nao e o admin*/
+        return 1;
+    }
+
+    client->request->type = OP_SHUTDOWN;
+
+    client->request->value.header.account_id = atoi(argValues[1]);
+    strcpy(client->request->value.header.password, argValues[2]);
+    client->request->value.header.op_delay_ms = atoi(argValues[3]);
+
+    return 0;
+
+}
 
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
 
+    if(argc != 5 || argc !=6) {
+        fprintf(stderr,"Wrong number of arguments\n");
+        return 1;
+    }
     client_t * client = createClient();
 
     openRequestFifo(client, SERVER_FIFO_PATH);
@@ -182,47 +215,29 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 
     switch(typeofRequest) {
         case OP_CREATE_ACCOUNT:
-        if (createAccountRequest(client, argc, argv)!=0) {
-            return 1;
-        }
+        createAccountRequest(client, argv);
         break;
 
         case OP_BALANCE :
-        createBalanceRequest(client,argc,argv);
+        createBalanceRequest(client,argv);
+        break;
+
+        case OP_TRANSFER:
+        createTransferRequest(client,argv);
+        break;
+
+        case OP_SHUTDOWN:
+        createShutDownRequest(client,argv);
+        break;
+
+        default:
         break;
 
     }
-
-    // //fill header
-    // request->value.header.account_id = atoi(argv[1]);
-    // strcpy(request->value.header.password, argv[2]);
-    // request->value.header.op_delay_ms = atoi(argv[3]);
-
-    // uint32_t id;
-
-    // switch (request->type)
-    // {
-    // case OP_CREATE_ACCOUNT:
-    //     id = atoi(strtok(argv[5], " "));
-    //     request->value.create.account_id = id;
-    //     uint32_t balance = atoi(strtok(argv[5], " "));
-    //     request->value.create.balance = balance;
-    //     strcpy(request->value.create.password, argv[5]);
-    //     //request.length = 13;
-    //     break;
-    // case OP_BALANCE:
-    //     break;
-    // case OP_TRANSFER:
-    //     id = atoi(strtok(argv[5], " "));
-    //     request->value.transfer.account_id = id;
-    //     request->value.transfer.amount = atoi(argv[5]);
-    //     break;
-    // case OP_SHUTDOWN:
-    //     break;
-    // }
-
     sendRequest(client);
+
     logRequest(STDOUT_FILENO, client->request->value.create.account_id,client->request);
+   
     destroyClient(client);
     //close(fd);
     // srand(time(NULL));
