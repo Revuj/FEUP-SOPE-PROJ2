@@ -2,7 +2,7 @@ OBJECTS = server.o options.o
 ONAME = server
 
 all: $(OBJECTS)
-	$(CC) $(WARNS) $(INCLUDES) -o $(ONAME) $(OBJECTS) $(LDFLAGS)
+	$(CC) -pthread $(WARNS) $(INCLUDES) -o $(ONAME) $(OBJECTS) $(LDFLAGS)
 	@rm -f $(OBJECTS)
 
 %.o: %.c
