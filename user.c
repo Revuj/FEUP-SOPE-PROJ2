@@ -53,6 +53,20 @@ client_t * clientWrapper(client_t * client) {
     return compClient;
 }
 
+int destroyClient(client_t *client) {
+    close(client->fifoRequest);
+    free(client->request);
+
+    close(client->fifoReply);
+
+    if(unlink(client->nameFifoAnswer)== -1) {
+        return 1;
+    }
+
+    free(client->reply);
+    free(client->nameFifoAnswer);
+    return 0;
+}
 
 
 void alarmHandler(int signo) {
@@ -140,21 +154,6 @@ int readReply(client_t * client) {
     }
 
     cancelAlarm();
-    return 0;
-}
-
-int destroyClient(client_t *client) {
-    close(client->fifoRequest);
-    free(client->request);
-
-    close(client->fifoReply);
-
-    if(unlink(client->nameFifoAnswer)== -1) {
-        return 1;
-    }
-
-    free(client->reply);
-    free(client->nameFifoAnswer);
     return 0;
 }
 
