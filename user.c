@@ -17,6 +17,7 @@
 #include "log.c"
 
 #define LENGTH_NAME 20
+#define FIFO_LENGTH 20
 
 
 typedef struct {
@@ -45,6 +46,7 @@ client_t * createClient() {
     client->request = (tlv_request_t *)malloc(sizeof(tlv_request_t));
     client->reply=(tlv_reply_t *)malloc(sizeof(tlv_reply_t));
     client->request->value.header.pid = getpid();
+    client->nameFifoAnswer = (char *) malloc(sizeof(FIFO_LENGTH));
 
 
     return client;
@@ -56,25 +58,21 @@ void openRequestFifo(client_t * client) {
 }
 
 int createReplyFifo(client_t * client) {
-    char *name = NULL;
-    if (asprintf(&name,USER_FIFO_PATH_PREFIX"%d",  client->request->value.header.pid) < 0) {
+    
+    if (sprintf(client->nameFifoAnswer,USER_FIFO_PATH_PREFIX"%d",  client->request->value.header.pid) < 0) {
         return 1;
     }
-    if (mkfifo(name ,S_IRUSR | S_IWUSR) < 0) {
+    if (mkfifo(client->nameFifoAnswer ,S_IRUSR | S_IWUSR) < 0) {
         if (errno == EEXIST) {
-            unlink(name);
-            mkfifo(name, S_IRUSR | S_IWUSR);
+            unlink(client->nameFifoAnswer);
+            mkfifo(client->nameFifoAnswer, S_IRUSR | S_IWUSR);
         } 
         else {
             return 2;
         }
     }
-    client->nameFifoAnswer = name;
-    return 0;
-}
-
-void createRequest(client_t client) {
     
+    return 0;
 }
 
 int openReplyFifo(client_t *client) {
@@ -123,6 +121,51 @@ int destroyClient(client_t *client) {
 }
 
 
+int createAccountRequest(client_t * client, int args, char ** argValues) {
+
+    if (args != 5 && args != 6) {
+        return 1;
+    }
+    /*fill enum*/
+    client->request->type = OP_CREATE_ACCOUNT;
+
+    /*finish to fill header*/
+    int ID = atoi(argValues[1]);
+
+    if(ID!=0) { /*nao e o admin*/
+        return 2;
+    }
+ 
+    client->request->value.header.account_id = atoi(argValues[1]);
+    strcpy(client->request->value.header.password, argValues[2]);
+    client->request->value.header.op_delay_ms = atoi(argValues[3]);
+    /*fill union com info da conta a criar*/
+    char *token;
+   
+    token = strtok(argValues[5], " ");
+    client->request->value.create.account_id =atoi(token);
+    token = strtok(NULL," ");
+    client->request->value.create.balance = atoi(token);
+    token = strtok(NULL," ");
+    strcpy(client->request->value.create.password,token);
+   
+    return 0;
+}
+
+int createBalanceRequest(client_t * client, int args, char ** argValues) {
+      if (args != 5 && args != 6) {
+        return 1;
+    }
+    /*fill enum*/
+    client->request->type = OP_BALANCE;
+
+    client->request->value.header.account_id = atoi(argValues[1]);
+    strcpy(client->request->value.header.password, argValues[2]);
+    client->request->value.header.op_delay_ms = atoi(argValues[3]);
+    return 0;
+}
+
+
 
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
@@ -135,45 +178,51 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         return 1;
     }
      
+    op_type_t typeofRequest = atoi(argv[4]);
 
+    switch(typeofRequest) {
+        case OP_CREATE_ACCOUNT:
+        if (createAccountRequest(client, argc, argv)!=0) {
+            return 1;
+        }
+        break;
 
-    if (strcmp(argv[1], "0") == 0)
-    {
+        case OP_BALANCE :
+        createBalanceRequest(client,argc,argv);
+        break;
+
     }
 
-    tlv_request_t * request=  client->request;
-    request->type = atoi(argv[4]);
+    // //fill header
+    // request->value.header.account_id = atoi(argv[1]);
+    // strcpy(request->value.header.password, argv[2]);
+    // request->value.header.op_delay_ms = atoi(argv[3]);
 
-    //fill header
-    request->value.header.account_id = atoi(argv[1]);
-    strcpy(request->value.header.password, argv[2]);
-    request->value.header.op_delay_ms = atoi(argv[3]);
+    // uint32_t id;
 
-    uint32_t id;
-
-    switch (request->type)
-    {
-    case OP_CREATE_ACCOUNT:
-        id = atoi(strtok(argv[5], " "));
-        request->value.create.account_id = id;
-        uint32_t balance = atoi(strtok(argv[5], " "));
-        request->value.create.balance = balance;
-        strcpy(request->value.create.password, argv[5]);
-        //request.length = 13;
-        break;
-    case OP_BALANCE:
-        break;
-    case OP_TRANSFER:
-        id = atoi(strtok(argv[5], " "));
-        request->value.transfer.account_id = id;
-        request->value.transfer.amount = atoi(argv[5]);
-        break;
-    case OP_SHUTDOWN:
-        break;
-    }
+    // switch (request->type)
+    // {
+    // case OP_CREATE_ACCOUNT:
+    //     id = atoi(strtok(argv[5], " "));
+    //     request->value.create.account_id = id;
+    //     uint32_t balance = atoi(strtok(argv[5], " "));
+    //     request->value.create.balance = balance;
+    //     strcpy(request->value.create.password, argv[5]);
+    //     //request.length = 13;
+    //     break;
+    // case OP_BALANCE:
+    //     break;
+    // case OP_TRANSFER:
+    //     id = atoi(strtok(argv[5], " "));
+    //     request->value.transfer.account_id = id;
+    //     request->value.transfer.amount = atoi(argv[5]);
+    //     break;
+    // case OP_SHUTDOWN:
+    //     break;
+    // }
 
     sendRequest(client);
-    logRequest(STDOUT_FILENO, id,request);
+    logRequest(STDOUT_FILENO, client->request->value.create.account_id,client->request);
     destroyClient(client);
     //close(fd);
     // srand(time(NULL));
