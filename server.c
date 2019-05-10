@@ -10,35 +10,64 @@
 #include <ctype.h>
 #include <errno.h>
 #include <pthread.h>
+#include<sys/mman.h>
 
 #include "sope.h"
 #include "types.h"
 #include "constants.h"
 #include "log.c"
 
-pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+typedef struct {
+    pthread_mutex_t bufferLock;
+    pthread_cond_t full;
+    pthread_cond_t empty;
+} Shared_memory;
 
 typedef struct  {
     int bankOfficesNo;
-    int  sLogFd;
+    int sLogFd;
+    int fifoFd;
     bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
     pthread_t bankOffices[MAX_BANK_OFFICES];
-
+    Shared_memory * shm;
+    bank_account_t * adminAccount;
 } Server_t;
 
+Shared_memory * initSharedMemory(char * shmName, int shmSize) {
+    int shmfd = shm_open(shmName, O_RDWR | O_CREAT, 0660);
+    if (shmfd < 0) {
+        perror("Shared Memory");
+        return NULL;
+    }
 
-int openLogText(Server_t * server) {
-    server->sLogFd = open(SERVER_LOGFILE, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
-    if (server->sLogFd == -1) {
+    Shared_memory * shm = mmap(0, shmSize, PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0);
+
+    if (shm == MAP_FAILED) {
+        perror("mmap()");
+        return NULL;
+    }
+
+    return (Shared_memory * ) shm;
+}
+
+int openLogText(char * logFileName) {
+    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
+    if (fd == -1) {
         perror("Server Log File");
         return -1;
     }
     return 0;
 }
 
+void * runBankOffice(void * arg) {
+    while(1) {
+
+    }
+}
+
 void createBankOffices(Server_t * server ) {
     for  (int i = 1; i <= server->bankOfficesNo; i++) {
-        pthread_create(&(server->bankOffices[i-1]), NULL, NULL, NULL);
+        pthread_create(&(server->bankOffices[i-1]), NULL, runBankOffice, NULL);
         logBankOfficeOpen(server->sLogFd, i, server->bankOffices[i-1]);
     }
 }
@@ -58,14 +87,14 @@ int closeLogText(Server_t *server) {
     return 0;
 }
 
-int createFifo() {
-    if (mkfifo(SERVER_FIFO_PATH, S_IRUSR | S_IWUSR))
+int createFifo(char * fifoName) {
+    if (mkfifo(fifoName, S_IRUSR | S_IWUSR))
     {
         if (errno == EEXIST)
         {
 
-            unlink(SERVER_FIFO_PATH);
-            mkfifo(SERVER_FIFO_PATH, S_IRUSR | S_IWUSR);
+            unlink(fifoName);
+            mkfifo(fifoName, S_IRUSR | S_IWUSR);
             return 0;
         }
         else
@@ -76,13 +105,15 @@ int createFifo() {
     }
 }
 
-int openServerFifo() {
-    int fd = open(SERVER_FIFO_PATH, O_RDONLY);
+int openFifo(char * fifoName) {
+    int fd = open(fifoName, O_RDONLY | O_NONBLOCK);
 
     if (fd < 0)
     {
-        exit(1);
+        perror("Opening fifo");
+        return -1;
     }
+
     return fd;
 }
 
@@ -105,58 +136,54 @@ void fillReply(tlv_reply_t * reply, tlv_request_t request) {
     reply->value.shutdown.active_offices = 34;
 }
 
-int main(int argc, char **argv)
-{
-    if (argc != 3)
-    {
-        printf("Usage: ./server <number of bank offices> <admin password>");
-        return 1;
-    }
+//a alterar
+bank_account_t * createBankAccount(int id, int balance) {
+    bank_account_t * account = malloc(sizeof(bank_account_t));
+    account->account_id = id;
+    account->balance = balance;
+    //account.hash
+    //account.salt
+    logAccountCreation(STDOUT_FILENO, id, account);
+    return account;
+}
 
+Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
     Server_t * server = (Server_t *)malloc(sizeof(Server_t));
+
+    int logFd = openLogText(logFileName);
+
+    if (logFd == -1) 
+        return NULL;
+
+    if (createFifo(fifoName) == -1) 
+        return NULL;
+
+
+    int fifoFd = openFifo(fifoName);
+
+    if (fifoFd < 0)
+        return NULL;
     
-    if (openLogText(server) == -1) {
-        exit(3);
-    }
-
-    int opcode = 1;
-
-    if (createFifo() == -1) {
-        return 1;
-    }
-
-
-    int fd= openServerFifo();
     
+    Shared_memory * shm = initSharedMemory(SHM_NAME, sizeof(Shared_memory));
+
+    if (shm == NULL)
+        return NULL;
+
+    bank_account_t * admin_account = createBankAccount(ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
+
+    server->sLogFd = logFd;
+    server->fifoFd = fifoFd;
+    server->bankOfficesNo = bankOfficesNo;
+    server->shm = shm;
+    server->adminAccount = admin_account;  
+
     createBankOffices(server);
 
-    int bank_offices_no = atoi(argv[1]);
+    return server;
+}
 
-    bank_account_t admin_account;
-    admin_account.account_id = ADMIN_ACCOUNT_ID;
-    admin_account.balance = ADMIN_ACCOUNT_BALLANCE;
-
-    logAccountCreation(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &admin_account);
-
-   
-
-    tlv_request_t request;
-    tlv_reply_t reply;
-
-    int n = 0;
-
-    do
-    {
-        n = read(fd, &request, sizeof(tlv_request_t));
-        if (n > 0) {
-            fillReply(&reply, request);
-            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
-        }
-        sleep(1);     
-
-    } while (true);
-
-
+void closeServer(Server_t * server) {
     closeBankOffices(server);
 
 
@@ -166,4 +193,40 @@ int main(int argc, char **argv)
 
     closeServerFifo();
 
+    if (munmap(server->shm, sizeof(Shared_memory)) < 0)   
+    {     perror("Failure in munmap()");
+         exit(EXIT_FAILURE);
+    }
+}
+
+int main(int argc, char **argv)
+{
+    if (argc != 3)
+    {
+        printf("Usage: ./server <number of bank offices> <admin password>");
+        return 1;
+    }
+
+
+    Server_t * server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, atoi(argv[1]));
+    if (server == NULL) {
+        perror("Server Initialization");
+        return 1;
+    }    
+
+    tlv_request_t request;
+    tlv_reply_t reply;
+
+    int n = 0;
+
+    do
+    {
+        n = read(server->fifoFd, &request, sizeof(tlv_request_t));
+        if (n > 0) {
+            fillReply(&reply, request);
+            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
+        }
+        sleep(1);     
+
+    } while (1);
 }
