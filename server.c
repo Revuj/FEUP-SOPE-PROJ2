@@ -29,26 +29,9 @@ typedef struct  {
     int fifoFd;
     bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
     pthread_t bankOffices[MAX_BANK_OFFICES];
-    Shared_memory * shm;
     bank_account_t * adminAccount;
 } Server_t;
 
-Shared_memory * initSharedMemory(char * shmName, int shmSize) {
-    int shmfd = shm_open(shmName, O_RDWR | O_CREAT, 0660);
-    if (shmfd < 0) {
-        perror("Shared Memory");
-        return NULL;
-    }
-
-    Shared_memory * shm = mmap(0, shmSize, PROT_READ | PROT_WRITE, MAP_SHARED, shmfd, 0);
-
-    if (shm == MAP_FAILED) {
-        perror("mmap()");
-        return NULL;
-    }
-
-    return (Shared_memory * ) shm;
-}
 
 int openLogText(char * logFileName) {
     int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
@@ -137,14 +120,47 @@ void fillReply(tlv_reply_t * reply, tlv_request_t request) {
 }
 
 //a alterar
-bank_account_t * createBankAccount(int id, int balance) {
+bank_account_t * createBankAccount(Server_t * server, int id, int balance) {
     bank_account_t * account = malloc(sizeof(bank_account_t));
     account->account_id = id;
     account->balance = balance;
     //account.hash
     //account.salt
+    server->bankAccounts[id] = *account;
     logAccountCreation(STDOUT_FILENO, id, account);
     return account;
+}
+
+int accountExists(Server_t * server, int id) {
+    if (server->bankAccounts + id == NULL)
+        return -1;
+    return 0;
+}
+
+//a alterar
+int checkBalance(Server_t * server, int id) {
+    return server->bankAccounts[id].balance;
+}
+
+void addBalance(Server_t * server, int id, int balance) {
+    server->bankAccounts[id].balance += balance;
+}
+
+int subtractBalance(Server_t * server, int id, int balance) {
+    int newBalance = server->bankAccounts[id].balance - balance;
+    if (newBalance < 0)
+        return -1;
+    server->bankAccounts[id].balance -= balance;
+    return 0;
+}
+
+int transference(Server_t * server, int senderId, int receiverId, int balance) {
+
+    if (subtractBalance(server, senderId, balance) < 0)
+        return -1; 
+
+    addBalance(server, receiverId, balance);
+    return 0;    
 }
 
 Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
@@ -163,19 +179,13 @@ Server_t * initServer(char * logFileName, char * fifoName, int bankOfficesNo) {
 
     if (fifoFd < 0)
         return NULL;
-    
-    
-    Shared_memory * shm = initSharedMemory(SHM_NAME, sizeof(Shared_memory));
 
-    if (shm == NULL)
-        return NULL;
 
-    bank_account_t * admin_account = createBankAccount(ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
+    bank_account_t * admin_account = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE);
 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
-    server->shm = shm;
     server->adminAccount = admin_account;  
 
     createBankOffices(server);
@@ -192,11 +202,6 @@ void closeServer(Server_t * server) {
     }
 
     closeServerFifo();
-
-    if (munmap(server->shm, sizeof(Shared_memory)) < 0)   
-    {     perror("Failure in munmap()");
-         exit(EXIT_FAILURE);
-    }
 }
 
 int main(int argc, char **argv)
@@ -229,4 +234,6 @@ int main(int argc, char **argv)
         sleep(1);     
 
     } while (1);
+
+    closeServer(server);
 }
