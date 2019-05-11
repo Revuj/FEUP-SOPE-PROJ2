@@ -12,7 +12,6 @@
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
-#include "../log.c"
 #include "options.h"
 
 #define LENGTH_NAME 20
@@ -251,6 +250,7 @@ int createShutDownRequest(client_t *client)
 
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
+    parse_args(argc,argv);
 
     client_t *client = createClient();
 

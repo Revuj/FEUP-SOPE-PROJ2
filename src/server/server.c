@@ -16,7 +16,7 @@
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
-#include "../log.c"
+#include "options.h"
 
 #define READ 0
 #define WRITE 1
@@ -337,15 +337,12 @@ void closeServer(Server_t *server)
 
 int main(int argc, char **argv)
 {
-    if (argc != 3)
-    {
-        printf("Usage: ./server <number of bank offices> <admin password>");
-        return 1;
-    }
+    parse_args(argc,argv);
 
     srand(time(NULL));
 
-    Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, atoi(argv[1]), argv[2]);
+    Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, bankOffices, password);
+    
     if (server == NULL)
     {
         perror("Server Initialization");
