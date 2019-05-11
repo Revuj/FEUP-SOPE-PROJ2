@@ -1,5 +1,6 @@
 #include "options.h"
 #include "../constants.h"
+#include "../types.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -17,10 +18,10 @@
 int o_show_help = false; // h, help
 int o_show_usage = false; // usage
 
-int id;
+uint32_t accountID;
 const char* password = NULL;
-int delay;
-int operation;
+uint32_t delay;
+op_type_t operation;
 char* arguments = NULL;
 // ----> END OF OPTIONS
 
@@ -123,17 +124,17 @@ int parse_args(int argc, char** argv) {
     int num_positional = argc - optind;
 
     if (num_positional == 5) {
-        if (parse_int(argv[optind++], &id) != 0 || id > MAX_BANK_ACCOUNTS) {
+        if (parse_int(argv[optind++], (int*)&accountID) != 0 || accountID > MAX_BANK_ACCOUNTS) {
             print_badpositional(1);
         }
         password = strdup(argv[optind++]);
         if (strlen(password) < MIN_PASSWORD_LEN || strlen(password) > MAX_PASSWORD_LEN) {
             print_badpositional(2);
         }
-        if (parse_int(argv[optind++], &delay) != 0 || delay > MAX_OP_DELAY_MS) {
+        if (parse_int(argv[optind++], (int*)&delay) != 0 || delay > MAX_OP_DELAY_MS) {
             print_badpositional(3);
         }
-        if (parse_int(argv[optind++], &operation) != 0 || operation < 0 || operation > 3) {
+        if (parse_int(argv[optind++], (int*)&operation) != 0 || operation < 0 || operation > __OP_MAX_NUMBER) {
             print_badpositional(4);
         }
         arguments = strdup(argv[optind++]);
