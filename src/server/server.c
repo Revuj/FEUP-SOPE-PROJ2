@@ -18,6 +18,7 @@
 #include "../constants.h"
 #include "../log.c"
 #include "options.h"
+#include "queue.h"
 
 #define READ 0
 #define WRITE 1
@@ -196,9 +197,27 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
 //====================================================================================================================================
 void *runBankOffice(void *arg)
 {
-    // while (1)
-    // {
-    // }
+    BankOffice_t *bankOffice = (BankOffice_t *) arg;
+    while (1)
+    {
+        readRequest(&(bankOffice->request));
+
+    }
+}
+//====================================================================================================================================
+void readRequestServer(Server_t *server) {
+    int n;
+    while (1)
+    {
+        tlv_request_t *request;
+        if ((n = read(server->fifoFd, &request, sizeof(tlv_request_t))) != -1) {
+            if (n == 0) {
+                close(server->fifoFd);
+                openRequestFifo(server);
+            }
+            else writeRequest(request);
+        }
+    }
 }
 //====================================================================================================================================
 void allocateBankOffice(BankOffice_t * th) {
@@ -224,7 +243,7 @@ void freeBankOffice(BankOffice_t * th) {
 //====================================================================================================================================
 void closeBankOffices(Server_t *server)
 {
-     for(int i = 0; i < server->bankOfficesNo; i++) {
+    for(int i = 0; i < server->bankOfficesNo; i++) {
         pthread_join(server->eletronicCounter[i]->tid,NULL);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         freeBankOffice(server->eletronicCounter[i]);
