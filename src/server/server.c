@@ -34,124 +34,89 @@ pthread_mutex_t bufferLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 
+typedef struct {
+    pthread_t tid;
+    tlv_request_t * request;
+    tlv_reply_t  *reply;
+    int fdReply;
+    int orderNr;
+
+} BankOffice_t;
+
+
 typedef struct
 {
+    bank_account_t *adminAccount;
+    bank_account_t **bankAccounts; /*array de contas*/
+    BankOffice_t ** eletronicCounter; /*array de bankoffices*/
     int bankOfficesNo;
     int sLogFd;
     int fifoFd;
-    bank_account_t bankAccounts[MAX_BANK_ACCOUNTS];
-    pthread_t bankOffices[MAX_BANK_OFFICES];
-    bank_account_t *adminAccount;
+    tlv_request_t buffer[1];
+
 } Server_t;
 
-int openLogText(char *logFileName)
-{
-    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
-    if (fd == -1)
-    {
-        perror("Server Log File");
+//====================================================================================================================================
+int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
+    sprintf("%s%d",prefixName, bankOffice->request->value.header.pid);
+    int fd = open(prefixName,O_WRONLY);
+
+    if (fd == -1 ) {
+        return -1;
+    } 
+    else {
+        bankOffice->fdReply=fd;
+        return 0;
+    }
+}
+//====================================================================================================================================
+int closeFifoReply(BankOffice_t * bankOffice) {
+    if (close(bankOffice->fdReply) < 0) {
+        perror("Error while closing reply fifo\n");
         return -1;
     }
     return 0;
 }
-
-void *runBankOffice(void *arg)
-{
-    while (1)
-    {
-    }
-}
-
-void createBankOffices(Server_t *server)
-{
-    for (int i = 1; i <= server->bankOfficesNo; i++)
-    {
-        pthread_create(&(server->bankOffices[i - 1]), NULL, runBankOffice, NULL);
-        logBankOfficeOpen(server->sLogFd, i, server->bankOffices[i - 1]);
-    }
-}
-
-void closeBankOffices(Server_t *server)
-{
-    for (int i = 1; i <= server->bankOfficesNo; i++)
-    {
-        pthread_join(server->bankOffices[i - 1], NULL);
-        logBankOfficeClose(server->sLogFd, i, server->bankOffices[i - 1]);
-    }
-}
-
-int closeLogText(Server_t *server)
-{
-    if (close(server->sLogFd) < 0)
-    {
-        perror("Server Log File");
-        return -1;
-    }
-    return 0;
-}
-
-int createFifo(char *fifoName)
-{
-    if (mkfifo(fifoName, S_IRUSR | S_IWUSR))
-    {
-        if (errno == EEXIST)
-        {
-
-            unlink(fifoName);
-            mkfifo(fifoName, S_IRUSR | S_IWUSR);
-            return 0;
-        }
-        else
-        {
-            perror("FIFO");
-            return -1;
-        }
-    }
-    return 0;
-}
-
-int openFifo(char *fifoName)
-{
-    int fd = open(fifoName, O_RDONLY | O_NONBLOCK);
-
-    if (fd < 0)
-    {
-        perror("Opening fifo");
+//====================================================================================================================================
+int sendReply(BankOffice_t * bankOffice,char *prefixName) {
+    if (openFifoReply(bankOffice,prefixName) == -1) {
+        perror("Cant open reply fifo\n");
         return -1;
     }
 
-    return fd;
-}
+    if (write(bankOffice->fdReply,bankOffice->reply,sizeof(tlv_reply_t))== -1) {
+        perror("Cant write to reply fifo\n");
+        return -1;
 
-void closeServerFifo()
-{
-
-    if (unlink(SERVER_FIFO_PATH) < 0)
-    {
-        perror("FIFO");
-        exit(2);
     }
-}
 
+    if (closeFifoReply(bankOffice) == -1) {
+        return -1;
+    }
+
+    return 0;
+    
+}
+//====================================================================================================================================
 //função a ser alterada quando tivermos o buffer de contas
-void fillReply(tlv_reply_t *reply, tlv_request_t request)
+void fillReply(tlv_reply_t *reply, tlv_request_t *request)
 {
-    reply->type = request.type;
+    reply->type = request->type;
     reply->length = 12; // falta a outra length
 
     switch (reply->type)
     {
     case OP_CREATE_ACCOUNT:
-        reply->value.header.account_id = request.value.create.account_id;
-        reply->value.balance.balance = request.value.create.balance;
+        reply->value.header.account_id = request->value.create.account_id;
+        reply->value.balance.balance = request->value.create.balance;
         break;
     case OP_BALANCE:
-        reply->value.header.account_id = request.value.create.account_id;
-        reply->value.balance.balance = request.value.create.balance;
+        reply->value.header.account_id = request->value.create.account_id;
+        reply->value.balance.balance = request->value.create.balance;
         break;
     case OP_TRANSFER:
-        reply->value.header.account_id = request.value.create.account_id;
-        reply->value.transfer.balance = request.value.transfer.amount;
+        reply->value.header.account_id = request->value.create.account_id;
+        reply->value.transfer.balance = request->value.transfer.amount;
         break;
     case OP_SHUTDOWN:
         //reply->value.shutdown.active_offices= nr threads ativos
@@ -162,7 +127,8 @@ void fillReply(tlv_reply_t *reply, tlv_request_t request)
         break;
     }
     reply->value.header.ret_code = 0; //mudar
-}
+
+} 
 
 void removeNewLine(char *line)
 {
@@ -227,11 +193,47 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
     //     close(fd[WRITE]);
     // }
 }
-
-//a alterar
+//====================================================================================================================================
+void *runBankOffice(void *arg)
+{
+    // while (1)
+    // {
+    // }
+}
+//====================================================================================================================================
+void allocateBankOffice(BankOffice_t * th) {
+    th->reply=(tlv_reply_t *) malloc(sizeof(tlv_reply_t));
+    th->request=(tlv_request_t *)malloc(sizeof(tlv_request_t));
+}
+//====================================================================================================================================
+void createBankOffices(Server_t *server)
+{
+    for (int i = 0; i < server->bankOfficesNo; i++)
+    {
+        allocateBankOffice(server->eletronicCounter[i]);
+        pthread_create(&server->eletronicCounter[i]->tid, NULL,runBankOffice,NULL);
+        logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+    }
+}
+//====================================================================================================================================
+void freeBankOffice(BankOffice_t * th) {
+    free(th->reply);
+    free(th->request);
+    free(th);
+}
+//====================================================================================================================================
+void closeBankOffices(Server_t *server)
+{
+     for(int i = 0; i < server->bankOfficesNo; i++) {
+        pthread_join(server->eletronicCounter[i]->tid,NULL);
+        logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+        freeBankOffice(server->eletronicCounter[i]);
+    }
+}
+//====================================================================================================================================
 bank_account_t *createBankAccount(Server_t *server, int id, int balance, char *password)
 {
-    bank_account_t *account = malloc(sizeof(bank_account_t));
+    bank_account_t *account = (bank_account_t *)malloc(sizeof(bank_account_t));
     account->account_id = id;
     account->balance = balance;
     generateSalt(account->salt);
@@ -239,50 +241,57 @@ bank_account_t *createBankAccount(Server_t *server, int id, int balance, char *p
     strcpy(hashInput, password);
     strcat(hashInput, account->salt);
     generateHash(hashInput, account->hash, "sha256sum");
-    server->bankAccounts[id] = *account;
-    logAccountCreation(STDOUT_FILENO, id, account);
-
     return account;
 }
-
+//====================================================================================================================================
+void destroyBankAccount(bank_account_t * bank_account) {
+    free(bank_account);
+}
+//====================================================================================================================================
 bool accountExists(Server_t *server, int id)
 {
     if (server->bankAccounts + id == NULL)
         return false;
     return true;
 }
-
+//====================================================================================================================================
 bool validateLogin(Server_t *server, int id, char *password)
 {
     char hash[HASH_LEN + 1];
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
     generateHash(hashInput, hash, "sha256sum");
 
-    if (accountExists(server, id) || strcmp(hash, server->bankAccounts[id].hash))
+    if (accountExists(server, id) || strcmp(hash, server->bankAccounts[id]->hash))
         return true;
     return false;
 }
-
-//a alterar
+//====================================================================================================================================
+// //a alterar
 int checkBalance(Server_t *server, int id)
 {
-    return server->bankAccounts[id].balance;
+    return server->bankAccounts[id]->balance;
 }
-
-void addBalance(Server_t *server, int id, int balance)
+//====================================================================================================================================
+int addBalance(Server_t *server, int id, int balance)
 {
-    server->bankAccounts[id].balance += balance;
-}
-
-int subtractBalance(Server_t *server, int id, int balance)
-{
-    int newBalance = server->bankAccounts[id].balance - balance;
-    if (newBalance < 0)
+    int newBalance = server->bankAccounts[id]->balance + balance;
+    if(newBalance > MAX_BALANCE) {
         return -1;
-    server->bankAccounts[id].balance -= balance;
+    }
+    server->bankAccounts[id]->balance = newBalance;
     return 0;
 }
-
+//====================================================================================================================================
+int subtractBalance(Server_t *server, int id, int balance)
+{
+    int newBalance = server->bankAccounts[id]->balance - balance;
+    if (newBalance < MIN_BALANCE) {
+        return -1;
+    }
+    server->bankAccounts[id]->balance -= balance;
+    return 0;
+}
+//====================================================================================================================================
 int transference(Server_t *server, int senderId, int receiverId, int balance)
 {
 
@@ -292,49 +301,129 @@ int transference(Server_t *server, int senderId, int receiverId, int balance)
     addBalance(server, receiverId, balance);
     return 0;
 }
-
-Server_t *initServer(char *logFileName, char *fifoName, int bankOfficesNo, char *adminPassword)
+//====================================================================================================================================
+int createFifo(char *fifoName)
 {
+    if (mkfifo(fifoName, S_IRUSR | S_IWUSR))
+    {
+        if (errno == EEXIST)
+        {
+
+            unlink(fifoName);
+            mkfifo(fifoName, S_IRUSR | S_IWUSR);
+            return 0;
+        }
+        else
+        {
+            perror("FIFO");
+            return -1;
+        }
+    }
+    return 0;
+}
+//====================================================================================================================================
+int openFifo(char *fifoName)
+{
+    int fd = open(fifoName, O_RDONLY | O_NONBLOCK);
+
+    if (fd < 0)
+    {
+        perror("Opening fifo");
+        return -1;
+    }
+
+    return fd;
+}
+
+//====================================================================================================================================
+int openLogText(char *logFileName)
+{
+    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
+    if (fd == -1)
+    {
+        perror("Server Log File");
+        return -1;
+    }
+    return 0;
+}
+//====================================================================================================================================
+Server_t *initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *adminPassword)
+{
+    int fifoFd, logFd;
+
     Server_t *server = (Server_t *)malloc(sizeof(Server_t));
 
-    int logFd = openLogText(logFileName);
+    server->adminAccount = (bank_account_t *)malloc(sizeof(bank_account_t));
+    server->adminAccount = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE, adminPassword);
 
-    if (logFd == -1)
-        return NULL;
+    server->bankAccounts = (bank_account_t **)malloc(sizeof(bank_account_t)* MAX_BANK_ACCOUNTS);
+
 
     if (createFifo(fifoName) == -1)
         return NULL;
 
-    int fifoFd = openFifo(fifoName);
-
-    if (fifoFd < 0)
+    if ((fifoFd=openFifo(fifoName)) < 0) {
         return NULL;
+    }
 
-    bank_account_t *admin_account = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE, adminPassword);
+    if ((logFd=openLogText(logFileName)) == -1) {
+        return NULL;
+    }
+    /*bank offices correspondentes as threads*/
+    server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t) * bankOfficesNo);
 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
-    server->adminAccount = admin_account;
-
-    createBankOffices(server);
-
-    free(admin_account);
 
     return server;
 }
-
-void closeServer(Server_t *server)
+//====================================================================================================================================
+int closeLogText(Server_t *server)
 {
-    closeBankOffices(server);
-
-    if (closeLogText(server) == -1)
+    if (close(server->sLogFd) < 0)
     {
-        exit(765);
+        perror("Server Log File");
+        return -1;
     }
+    return 0;
+}
+//====================================================================================================================================
+void closeServerFifo()
+{
+
+    if (unlink(SERVER_FIFO_PATH) < 0)
+    {
+        perror("FIFO");
+        exit(2);
+    }
+}
+//====================================================================================================================================
+int closeServer(Server_t *server)
+{
+    if (close(server->fifoFd) == -1) {
+        perror("Couldnt close fifo\n");
+        return 1;
+    }
+
+    if (closeLogText(server) == -1) {
+        perror("Couldnt close log text\n");
+        return 1;
+    }
+
+    for(int i = 0; i < server->bankOfficesNo; i++) {
+        free(server->eletronicCounter[i]);
+    }
+
+    free(server->bankAccounts);/*tb e necessario fazer um ciclo com numero de contas*/
+
+    destroyBankAccount(server->adminAccount);
+
+    free(server);
 
     closeServerFifo();
 }
+//====================================================================================================================================
 
 int main(int argc, char **argv)
 {
@@ -350,22 +439,30 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    tlv_request_t request;
-    tlv_reply_t reply;
+    //createBankOffices(server);
+    /*test--a  mudar para serem threads-funcoes ja feitas*/
+    BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
+    bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
+    bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
 
     int n = 0;
 
     do
     {
-        n = read(server->fifoFd, &request, sizeof(tlv_request_t));
+        n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
         if (n > 0)
         {
-            fillReply(&reply, request);
-            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, &reply);
+            fillReply(bk->reply, bk->request);
+            //sendReply(bk,USER_FIFO_PATH_PREFIX);
+            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, bk->reply);
+            
         }
         sleep(1);
 
     } while (1);
+    free(bk->reply);
+    free(bk->request);
+    free(bk);
 
     closeServer(server);
 }
