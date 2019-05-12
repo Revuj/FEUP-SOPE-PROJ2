@@ -16,6 +16,7 @@
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
+#include "../log.c"
 #include "options.h"
 
 #define READ 0

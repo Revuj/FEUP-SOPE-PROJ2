@@ -12,6 +12,7 @@
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
+#include "../log.c"
 #include "options.h"
 
 #define LENGTH_NAME 20
