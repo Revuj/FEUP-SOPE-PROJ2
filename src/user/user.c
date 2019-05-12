@@ -168,7 +168,7 @@ int readReply(client_t *client)
 {
     int nrRead;
 
-    while ((nrRead = read(client->fifoReply, client->reply, sizeof(tlv_request_t))) == -1)
+    while ((nrRead = read(client->fifoReply, client->reply, sizeof(tlv_request_t))) != -1)
     {
         if (nrRead != 0)
         {
@@ -283,12 +283,20 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         break;
     }
 
+    createReplyFifo(client, USER_FIFO_PATH_PREFIX);
+
     sendRequest(client);
     
     clientWrapper(client);
     
     alarm(FIFO_TIMEOUT_SECS);
-    
+
+    //openReplyFifo(client);
+
+    //readReply(client);
+
+    //printf("%d %d", client->reply->value.header.ret_code, client->reply->value.balance.balance);
+
     logRequest(STDOUT_FILENO, client->request->value.create.account_id, client->request);
 
     destroyClient(client);
