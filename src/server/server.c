@@ -499,28 +499,28 @@ int main(int argc, char **argv)
     createBankOffices(server);
     requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
     // /*test--a  mudar para serem threads-funcoes ja feitas*/
-    // // BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
-    // // bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
-    // // bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
+    BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
+    bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
+    bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
 
-    // // int n = 0;
+    int n = 0;
 
-    // // do
-    // // {
-    // //     n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
-    // //     if (n > 0)
-    // //     {
-    // //         fillReply(bk->reply, bk->request);
-    // //         //sendReply(bk,USER_FIFO_PATH_PREFIX);
-    // //         logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, bk->reply);
+    do
+    {
+        n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
+        if (n > 0)
+        {
+            fillReply(bk->reply, bk->request);
+            sendReply(bk,USER_FIFO_PATH_PREFIX);
+            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, bk->reply);
             
-    // //     }
-    // //     sleep(1);
+        }
+        sleep(1);
 
-    // // } while (1);
-    // // free(bk->reply);
-    // // free(bk->request);
-    // // free(bk);
+    } while (1);
+    free(bk->reply);
+    free(bk->request);
+    free(bk);
     closeBankOffices(server);
     //freeQueue(requestsQueue);
     closeServer(server);

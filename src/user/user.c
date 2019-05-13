@@ -243,8 +243,9 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     parse_args(argc,argv,client->request);
 
 
-    // if(openRequestFifo(client) != 0)
-    //     exit(EXIT_FAILURE);
+    if(openRequestFifo(client) != 0) {
+        exit(EXIT_FAILURE);
+    }
 
     // if (installAlarm() != 0)
     //     exit(EXIT_FAILURE);
@@ -272,17 +273,17 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         break;
     }
 
-    // createReplyFifo(client, USER_FIFO_PATH_PREFIX);
+    createReplyFifo(client, USER_FIFO_PATH_PREFIX);
 
-    // sendRequest(client);
+    sendRequest(client);
     
     // clientWrapper(client);
     
     // alarm(FIFO_TIMEOUT_SECS);
 
-    //openReplyFifo(client);
+    openReplyFifo(client);
 
-    //readReply(client);
+    readReply(client);
 
     //printf("%d %d", client->reply->value.header.ret_code, client->reply->value.balance.balance);
 
