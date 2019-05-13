@@ -13,24 +13,23 @@
 static sem_t notFull, notEmpty;
 static pthread_mutex_t queueLock;
 
-
 void freeQueue(queue_t *queue) {
     sem_destroy(&notFull);
     sem_destroy(&notEmpty);
     
     pthread_mutex_destroy(&queueLock);
      
-    free(queue->requestsQueue);
-    queue->requestsQueue = NULL;
-    queue->queueSize = queue->queueRead_p = queue->queueWrite_p = 0;
+    free(queue->requests);
+    queue->requests = NULL;
+    queue->size = queue->read_p = queue->write_p = 0;
 }
 
 void readRequest(queue_t *queue, tlv_request_t** request_ptr) {
     sem_wait(&notEmpty);
     pthread_mutex_lock(&queueLock);
 
-    *request_ptr = queue->requestsQueue[queue->queueRead_p];
-    queue->queueRead_p = (queue->queueRead_p + 1) % queue->queueSize;
+    *request_ptr = queue->requests[queue->read_p];
+    queue->read_p = (queue->read_p + 1) % queue->size;
 
     pthread_mutex_unlock(&queueLock);
     sem_post(&notFull);
@@ -40,18 +39,20 @@ void writeRequest(queue_t *queue,tlv_request_t* request) {
     sem_wait(&notFull);
     pthread_mutex_lock(&queueLock);
 
-    queue->requestsQueue[queue->queueWrite_p] = request;
-    queue->queueWrite_p = (queue->queueWrite_p + 1) % queue->queueSize;
+    queue->requests[queue->write_p] = request;
+    queue->write_p = (queue->write_p + 1) % queue->size;
 
     pthread_mutex_unlock(&queueLock);
     sem_post(&notEmpty);
 }
 
-void initQueue(queue_t *queue,int size) {
-    queue->requestsQueue = malloc(size * sizeof(tlv_request_t*));
-    queue->queueSize = size;
+queue_t * createQueue(int size) {
+    queue_t * queue = (queue_t *)malloc(sizeof(queue_t));
+    queue->requests = (tlv_request_t **) malloc(size * sizeof(tlv_request_t *));
+    queue->size = size;
 
-    sem_init(&notFull, 0, queue->queueSize);
+    sem_init(&notFull, 0, queue->size);
     sem_init(&notEmpty, 0, 0);
     pthread_mutex_init(&queueLock, NULL);
+    return queue;
 }

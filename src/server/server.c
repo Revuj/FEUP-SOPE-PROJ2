@@ -33,13 +33,14 @@ pthread_mutex_t bufferLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 
+static queue_t * requestsQueue;
+
 typedef struct {
     pthread_t tid;
     tlv_request_t * request;
     tlv_reply_t  *reply;
     int fdReply;
     int orderNr;
- //   queue_t *requestsQueue;
   //  bank_account_t **bankAccounts; /*array de contas*/
 } BankOffice_t;
 
@@ -51,7 +52,6 @@ typedef struct
     int bankOfficesNo;
     int sLogFd;
     int fifoFd;
-    queue_t *requestsQueue;
 } Server_t;
 
 //====================================================================================================================================
@@ -230,7 +230,7 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *) arg;
     while (1)
     {
-        //readRequest(bankOffice->requestsQueue,&(bankOffice->request));
+        readRequest(requestsQueue,&(bankOffice->request));
     }
 }
 //====================================================================================================================================
@@ -247,7 +247,6 @@ void createBankOffices(Server_t *server)
         server->eletronicCounter[i] = (BankOffice_t *)malloc(sizeof(BankOffice_t));
         allocateBankOffice(server->eletronicCounter[i]); 
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
-        //server->eletronicCounter[i]->requestsQueue = server->requestsQueue;
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
     }
 }
@@ -255,7 +254,7 @@ void createBankOffices(Server_t *server)
 void freeBankOffice(BankOffice_t * th) {
     free(th->reply);
     free(th->request);
-    //freeQueue(th->requestsQueue);
+    freeQueue(requestsQueue);
     free(th);
 }
 //====================================================================================================================================
@@ -409,6 +408,8 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     /*bank offices correspondentes as threads*/
     server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
 
+    
+
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
@@ -473,13 +474,14 @@ void readRequestServer(Server_t *server) {
             }
             else {
                 
-                writeRequest(server->requestsQueue,&request);
+                writeRequest(requestsQueue,&request);
             }
         }
     }
 }
-//====================================================================================================================================
 
+
+//====================================================================================================================================
 int main(int argc, char **argv)
 {
     parse_args(argc,argv);
@@ -495,30 +497,31 @@ int main(int argc, char **argv)
     }
 
     createBankOffices(server);
-    /*test--a  mudar para serem threads-funcoes ja feitas*/
-    // BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
-    // bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
-    // bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
+    requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
+    // /*test--a  mudar para serem threads-funcoes ja feitas*/
+    // // BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
+    // // bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
+    // // bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
 
-    // int n = 0;
+    // // int n = 0;
 
-    // do
-    // {
-    //     n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
-    //     if (n > 0)
-    //     {
-    //         fillReply(bk->reply, bk->request);
-    //         //sendReply(bk,USER_FIFO_PATH_PREFIX);
-    //         logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, bk->reply);
+    // // do
+    // // {
+    // //     n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
+    // //     if (n > 0)
+    // //     {
+    // //         fillReply(bk->reply, bk->request);
+    // //         //sendReply(bk,USER_FIFO_PATH_PREFIX);
+    // //         logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, bk->reply);
             
-    //     }
-    //     sleep(1);
+    // //     }
+    // //     sleep(1);
 
-    // } while (1);
-    // free(bk->reply);
-    // free(bk->request);
-    // free(bk);
-    //closeBankOffices(server);
-
+    // // } while (1);
+    // // free(bk->reply);
+    // // free(bk->request);
+    // // free(bk);
+    closeBankOffices(server);
+    //freeQueue(requestsQueue);
     closeServer(server);
 }

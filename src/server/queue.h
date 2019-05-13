@@ -4,11 +4,11 @@
 #include "../types.h"
 
 typedef struct {
-    tlv_request_t** requestsQueue;
-    int queueSize, queueRead_p, queueWrite_p;
+    tlv_request_t ** requests;
+    int size, read_p, write_p;
 } queue_t;
 
-void initQueue(queue_t *queue,int size);
+queue_t * createQueue(int size);
 
 void freeQueue(queue_t *queue);
 
