@@ -18,10 +18,6 @@
 int o_show_help = false; // h, help
 int o_show_usage = false; // usage
 
-uint32_t accountID;
-const char* password = NULL;
-uint32_t delay;
-op_type_t operation;
 char* arguments = NULL;
 // ----> END OF OPTIONS
 
@@ -44,10 +40,6 @@ static const wchar_t* usage = L"Usage: user [option] ID password delay operation
     "General:\n"
     "  -h, --help,           \n"
     "      --usage           Show this message and exit\n";
-
-static void clear_options() {
-    free((char*)password);
-}
 
 static void print_all() {
     setlocale(LC_ALL, "");
@@ -88,7 +80,7 @@ static int parse_int(const char* str, int* store) {
 /**
  * Standard unix main's argument parsing function.
  */
-int parse_args(int argc, char** argv) {
+int parse_args(int argc, char** argv,tlv_request_t *request) {
     // If there are no args, print usage message and exit
     if (argc == 1) {
         print_all();
@@ -123,17 +115,14 @@ int parse_args(int argc, char** argv) {
     int num_positional = argc - optind;
 
     if (num_positional == 5) {
-        if (parse_int(argv[optind++], (int*)&accountID) != 0 || accountID > MAX_BANK_ACCOUNTS) {
+        if (parse_int(argv[optind++], (int*)&(request->value.header.account_id)) != 0) {
             print_badpositional(1);
         }
-        password = strdup(argv[optind++]);
-        if (strlen(password) < MIN_PASSWORD_LEN || strlen(password) > MAX_PASSWORD_LEN) {
-            print_badpositional(2);
-        }
-        if (parse_int(argv[optind++], (int*)&delay) != 0 || delay > MAX_OP_DELAY_MS) {
+        strcpy(request->value.header.password,argv[optind++]);
+        if (parse_int(argv[optind++], (int*)&(request->value.header.op_delay_ms)) != 0) {
             print_badpositional(3);
         }
-        if (parse_int(argv[optind++], (int*)&operation) != 0 || operation < 0 || operation > __OP_MAX_NUMBER) {
+        if (parse_int(argv[optind++], (int*)&(request->type)) != 0) {
             print_badpositional(4);
         }
         arguments = strdup(argv[optind++]);
@@ -141,6 +130,5 @@ int parse_args(int argc, char** argv) {
         print_numpositional(num_positional);
     }
 
-    atexit(clear_options);
     return 0;
 }

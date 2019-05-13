@@ -185,11 +185,6 @@ int createAccountRequest(client_t *client)
     /*fill enum*/
     client->request->type = OP_CREATE_ACCOUNT;
 
-    /*finish to fill header*/
-
-    client->request->value.header.account_id = accountID;
-    strcpy(client->request->value.header.password, password);
-    client->request->value.header.op_delay_ms = delay;
     /*fill union com info da conta a criar*/
     char *token;
 
@@ -209,10 +204,6 @@ int createBalanceRequest(client_t *client)
     /*fill enum*/
     client->request->type = OP_BALANCE;
 
-    client->request->value.header.account_id = accountID;
-    strcpy(client->request->value.header.password, password);
-    client->request->value.header.op_delay_ms = delay;
-
     return 0;
 }
 
@@ -220,10 +211,6 @@ int createTransferRequest(client_t *client)
 {
 
     client->request->type = OP_TRANSFER;
-
-    client->request->value.header.account_id = accountID;
-    strcpy(client->request->value.header.password, password);
-    client->request->value.header.op_delay_ms = delay;
 
     /*fill union*/
     char *token;
@@ -241,26 +228,23 @@ int createShutDownRequest(client_t *client)
 
     client->request->type = OP_SHUTDOWN;
 
-    client->request->value.header.account_id = accountID;
-    strcpy(client->request->value.header.password, password);
-    client->request->value.header.op_delay_ms = delay;
-
     return 0;
 }
 
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
-    parse_args(argc,argv);
-
     client_t *client = createClient();
 
-    if(openRequestFifo(client) != 0)
-        exit(EXIT_FAILURE);
+    parse_args(argc,argv,client->request);
 
-    if (installAlarm() != 0)
-        exit(EXIT_FAILURE);
 
-    switch (operation)
+    // if(openRequestFifo(client) != 0)
+    //     exit(EXIT_FAILURE);
+
+    // if (installAlarm() != 0)
+    //     exit(EXIT_FAILURE);
+    
+    switch (client->request->type)
     {
     case OP_CREATE_ACCOUNT:
         createAccountRequest(client);
@@ -282,13 +266,13 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         break;
     }
 
-    createReplyFifo(client, USER_FIFO_PATH_PREFIX);
+    // createReplyFifo(client, USER_FIFO_PATH_PREFIX);
 
-    sendRequest(client);
+    // sendRequest(client);
     
-    clientWrapper(client);
+    // clientWrapper(client);
     
-    alarm(FIFO_TIMEOUT_SECS);
+    // alarm(FIFO_TIMEOUT_SECS);
 
     //openReplyFifo(client);
 

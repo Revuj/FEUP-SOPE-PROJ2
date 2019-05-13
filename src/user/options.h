@@ -12,14 +12,10 @@ extern int o_show_help;
 #define USAGE_LFLAG "usage"
 extern int o_show_usage;
 
-extern uint32_t accountID;
-extern const char* password;
-extern uint32_t delay;
-extern op_type_t operation;
 extern char* arguments;
 
 
 // Parse command line arguments
-int parse_args(int argc, char** argv);
+int parse_args(int argc, char** argv,tlv_request_t *request);
 
 #endif // OPTIONS_H___
