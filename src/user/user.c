@@ -101,7 +101,7 @@ client_t *createClient()
     client_t *client = (client_t *)malloc(sizeof(client_t));
     client->request = (tlv_request_t *)malloc(sizeof(tlv_request_t));
     client->reply = (tlv_reply_t *)malloc(sizeof(tlv_reply_t));
-    client->request->value.header.pid = getpid();
+    client->request->value.header.pid=getpid();
     client->nameFifoAnswer = (char *)malloc(sizeof(FIFO_LENGTH));
 
     return client;
@@ -179,11 +179,11 @@ int readReply(client_t *client)
     return 0;
 }
 
-int createAccountRequest(client_t *client)
+
+int createAccountRequest(client_t *client, char * arguments)
 {
 
     /*fill enum*/
-    client->request->type = OP_CREATE_ACCOUNT;
 
     /*fill union com info da conta a criar*/
     char *token;
@@ -194,24 +194,25 @@ int createAccountRequest(client_t *client)
     client->request->value.create.balance = atoi(token);
     token = strtok(NULL, " ");
     strcpy(client->request->value.create.password, token);
+    client->request->length = MAX_PASSWORD_LEN +1 +WIDTH_OP + WIDTH_ID+ WIDTH_DELAY+WIDTH_TLV_LEN+2*WIDTH_ACCOUNT+MAX_PASSWORD_LEN+1+WIDTH_BALANCE;
 
     return 0;
 }
 
-int createBalanceRequest(client_t *client)
+int createBalanceRequest(client_t *client, char * arguments)
 {
 
-    /*fill enum*/
-    client->request->type = OP_BALANCE;
+    if (strlen(arguments) != 0) {
+        return 1; /*nao deveria ter argumentos........*/
+
+    }
+    client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP;
 
     return 0;
 }
 
-int createTransferRequest(client_t *client)
+int createTransferRequest(client_t *client, char * arguments)
 {
-
-    client->request->type = OP_TRANSFER;
-
     /*fill union*/
     char *token;
 
@@ -220,13 +221,17 @@ int createTransferRequest(client_t *client)
     token = strtok(NULL, " ");
     client->request->value.transfer.amount = atoi(token);
 
-    return 0;
+    client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP + WIDTH_ACCOUNT + WIDTH_BALANCE;
 }
 
-int createShutDownRequest(client_t *client)
+int createShutDownRequest(client_t *client, char * arguments)
 {
+     if (strlen(arguments) != 0) {
+        return 1; /*nao deveria ter argumentos........*/
 
-    client->request->type = OP_SHUTDOWN;
+    }
+
+    client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP;
 
     return 0;
 }
@@ -234,7 +239,7 @@ int createShutDownRequest(client_t *client)
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
     client_t *client = createClient();
-
+    
     parse_args(argc,argv,client->request);
 
 
@@ -244,22 +249,23 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     // if (installAlarm() != 0)
     //     exit(EXIT_FAILURE);
     
+    //verificar erros nas funções de input, Vítor
     switch (client->request->type)
     {
     case OP_CREATE_ACCOUNT:
-        createAccountRequest(client);
+        createAccountRequest(client, argv[5]);
         break;
 
     case OP_BALANCE:
-        createBalanceRequest(client);
+        createBalanceRequest(client, argv[5]);
         break;
 
     case OP_TRANSFER:
-        createTransferRequest(client);
+        createTransferRequest(client, argv[5]);
         break;
 
     case OP_SHUTDOWN:
-        createShutDownRequest(client);
+        createShutDownRequest(client, argv[5]);
         break;
     
     default:
@@ -280,7 +286,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 
     //printf("%d %d", client->reply->value.header.ret_code, client->reply->value.balance.balance);
 
-    logRequest(STDOUT_FILENO, client->request->value.create.account_id, client->request);
+    logRequest(STDOUT_FILENO, client->request->value.header.pid, client->request);
 
     destroyClient(client);
     //close(fd);

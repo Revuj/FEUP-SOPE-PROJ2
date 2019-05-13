@@ -18,7 +18,6 @@
 int o_show_help = false; // h, help
 int o_show_usage = false; // usage
 
-char* arguments = NULL;
 // ----> END OF OPTIONS
 
 
@@ -119,13 +118,13 @@ int parse_args(int argc, char** argv,tlv_request_t *request) {
             print_badpositional(1);
         }
         strcpy(request->value.header.password,argv[optind++]);
+        
         if (parse_int(argv[optind++], (int*)&(request->value.header.op_delay_ms)) != 0) {
             print_badpositional(3);
         }
         if (parse_int(argv[optind++], (int*)&(request->type)) != 0) {
             print_badpositional(4);
         }
-        arguments = strdup(argv[optind++]);
     } else {
         print_numpositional(num_positional);
     }

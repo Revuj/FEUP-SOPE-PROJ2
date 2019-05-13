@@ -12,9 +12,6 @@ extern int o_show_help;
 #define USAGE_LFLAG "usage"
 extern int o_show_usage;
 
-extern char* arguments;
-
-
 // Parse command line arguments
 int parse_args(int argc, char** argv,tlv_request_t *request);
 
