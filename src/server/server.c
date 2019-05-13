@@ -12,13 +12,11 @@
 #include <pthread.h>
 #include <sys/mman.h>
 
-
+#include "options.h"
+#include "queue.h"
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
-#include "../log.c"
-#include "options.h"
-#include "queue.h"
 
 #define READ 0
 #define WRITE 1
@@ -195,28 +193,46 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
     // }
 }
 //====================================================================================================================================
+void validateRequest(BankOffice_t *bankOffice) {
+    switch(bankOffice->request->type) {
+        case OP_CREATE_ACCOUNT:
+            if(bankOffice->request->value.header.account_id != 0) {
+                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+            }
+            //accountExists
+            break;
+        case OP_BALANCE:
+            if(bankOffice->request->value.header.account_id == 0) {
+                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+            }
+            break;
+        case OP_TRANSFER:
+            if(bankOffice->request->value.header.account_id == 0) {
+                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+            }
+            //accountExists
+            if(bankOffice->request->value.header.account_id == bankOffice->request->value.transfer.account_id) {
+                bankOffice->reply->value.header.ret_code = RC_SAME_ID;
+            }
+            //saldoinsuficiente
+            break;
+        case OP_SHUTDOWN:
+            if(bankOffice->request->value.header.account_id != 0) {
+                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+            }
+            break;
+        default:
+            break;
+    }
+}
+//====================================================================================================================================
 void *runBankOffice(void *arg)
 {
     BankOffice_t *bankOffice = (BankOffice_t *) arg;
     while (1)
     {
         readRequest(&(bankOffice->request));
-
-    }
-}
-//====================================================================================================================================
-void readRequestServer(Server_t *server) {
-    int n;
-    while (1)
-    {
-        tlv_request_t *request;
-        if ((n = read(server->fifoFd, &request, sizeof(tlv_request_t))) != -1) {
-            if (n == 0) {
-                close(server->fifoFd);
-                openRequestFifo(server);
-            }
-            else writeRequest(request);
-        }
+        validateRequest(bankOffice);
     }
 }
 //====================================================================================================================================
@@ -441,6 +457,23 @@ int closeServer(Server_t *server)
     free(server);
 
     closeServerFifo();
+
+    return 0;
+}
+//====================================================================================================================================
+void readRequestServer(Server_t *server) {
+    int n;
+    while (1)
+    {
+        tlv_request_t request;
+        if ((n = read(server->fifoFd, &request, sizeof(tlv_request_t))) != -1) {
+            if (n == 0) {
+                close(server->fifoFd);
+                openFifo(SERVER_FIFO_PATH);
+            }
+            else writeRequest(&request);
+        }
+    }
 }
 //====================================================================================================================================
 

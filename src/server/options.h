@@ -10,7 +10,7 @@ extern int o_show_help;
 extern int o_show_usage;
 
 extern int bankOffices;
-extern const char* password;
+extern char* password;
 
 
 // Parse command line arguments

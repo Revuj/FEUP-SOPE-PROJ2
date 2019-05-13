@@ -18,7 +18,7 @@ int o_show_help = false; // h, help
 int o_show_usage = false; // usage
 
 int bankOffices;
-const char* password = NULL;
+char* password = NULL;
 // ----> END OF OPTIONS
 
 

@@ -1,4 +1,4 @@
-OBJECTS = server.o options.o
+OBJECTS = server.o options.o queue.o
 ONAME = server
 
 all: $(OBJECTS)

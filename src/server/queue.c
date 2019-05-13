@@ -11,14 +11,14 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-static const tlv_request_t** requestsQueue = NULL;
+static tlv_request_t** requestsQueue = NULL;
 static int queueSize = 0, queueRead_p = 0, queueWrite_p = 0;
 
 static sem_t notFull, notEmpty;
 static pthread_mutex_t bufferLock;
 
 
-static void freeQueue() {
+void freeQueue() {
     sem_destroy(&notFull);
     sem_destroy(&notEmpty);
     
@@ -29,7 +29,7 @@ static void freeQueue() {
     queueSize = queueRead_p = queueWrite_p = 0;
 }
 
-static void readRequest(const tlv_request_t** request_ptr) {
+void readRequest(tlv_request_t** request_ptr) {
     sem_wait(&notEmpty);
     pthread_mutex_lock(&bufferLock);
 
@@ -40,7 +40,7 @@ static void readRequest(const tlv_request_t** request_ptr) {
     sem_post(&notFull);
 }
 
-static void writeRequest(const tlv_request_t* request) {
+void writeRequest(tlv_request_t* request) {
     sem_wait(&notFull);
     pthread_mutex_lock(&bufferLock);
 
@@ -51,7 +51,7 @@ static void writeRequest(const tlv_request_t* request) {
     sem_post(&notEmpty);
 }
 
-static void initQueue(int size) {
+void initQueue(int size) {
     requestsQueue = malloc(size * sizeof(tlv_request_t*));
     queueSize = size;
 
