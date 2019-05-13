@@ -47,7 +47,6 @@ static const wchar_t* usage = L"Usage: user [option] ID password delay operation
 
 static void clear_options() {
     free((char*)password);
-    free((char*)arguments);
 }
 
 static void print_all() {

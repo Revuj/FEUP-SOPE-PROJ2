@@ -3,10 +3,17 @@
 
 #include "../types.h"
 
-void initQueue(int size);
+typedef struct {
+    tlv_request_t** requestsQueue;
+    int queueSize, queueRead_p, queueWrite_p;
+} queue_t;
 
-void readRequest(tlv_request_t** request_ptr);
+void initQueue(queue_t *queue,int size);
 
-void writeRequest(tlv_request_t* request);
+void freeQueue(queue_t *queue);
+
+void readRequest(queue_t *queue, tlv_request_t** request_ptr);
+
+void writeRequest(queue_t *queue,tlv_request_t* request);
 
 #endif // QUEUE_H___

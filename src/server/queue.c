@@ -10,53 +10,48 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-static tlv_request_t** requestsQueue = NULL;
-static int queueSize = 0, queueRead_p = 0, queueWrite_p = 0;
-
 static sem_t notFull, notEmpty;
-static pthread_mutex_t bufferLock;
+static pthread_mutex_t queueLock;
 
 
-void freeQueue() {
+void freeQueue(queue_t *queue) {
     sem_destroy(&notFull);
     sem_destroy(&notEmpty);
     
-    pthread_mutex_destroy(&bufferLock);
+    pthread_mutex_destroy(&queueLock);
      
-    free(requestsQueue);
-    requestsQueue = NULL;
-    queueSize = queueRead_p = queueWrite_p = 0;
+    free(queue->requestsQueue);
+    queue->requestsQueue = NULL;
+    queue->queueSize = queue->queueRead_p = queue->queueWrite_p = 0;
 }
 
-void readRequest(tlv_request_t** request_ptr) {
+void readRequest(queue_t *queue, tlv_request_t** request_ptr) {
     sem_wait(&notEmpty);
-    pthread_mutex_lock(&bufferLock);
+    pthread_mutex_lock(&queueLock);
 
-    *request_ptr = requestsQueue[queueRead_p];
-    queueRead_p = (queueRead_p + 1) % queueSize;
+    *request_ptr = queue->requestsQueue[queue->queueRead_p];
+    queue->queueRead_p = (queue->queueRead_p + 1) % queue->queueSize;
 
-    pthread_mutex_unlock(&bufferLock);
+    pthread_mutex_unlock(&queueLock);
     sem_post(&notFull);
 }
 
-void writeRequest(tlv_request_t* request) {
+void writeRequest(queue_t *queue,tlv_request_t* request) {
     sem_wait(&notFull);
-    pthread_mutex_lock(&bufferLock);
+    pthread_mutex_lock(&queueLock);
 
-    requestsQueue[queueWrite_p] = request;
-    queueWrite_p = (queueWrite_p + 1) % queueSize;
+    queue->requestsQueue[queue->queueWrite_p] = request;
+    queue->queueWrite_p = (queue->queueWrite_p + 1) % queue->queueSize;
 
-    pthread_mutex_unlock(&bufferLock);
+    pthread_mutex_unlock(&queueLock);
     sem_post(&notEmpty);
 }
 
-void initQueue(int size) {
-    requestsQueue = malloc(size * sizeof(tlv_request_t*));
-    queueSize = size;
+void initQueue(queue_t *queue,int size) {
+    queue->requestsQueue = malloc(size * sizeof(tlv_request_t*));
+    queue->queueSize = size;
 
-    sem_init(&notFull, 0, queueSize);
+    sem_init(&notFull, 0, queue->queueSize);
     sem_init(&notEmpty, 0, 0);
-    pthread_mutex_init(&bufferLock, NULL);
-
-    atexit(freeQueue);
+    pthread_mutex_init(&queueLock, NULL);
 }

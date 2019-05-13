@@ -39,20 +39,19 @@ typedef struct {
     tlv_reply_t  *reply;
     int fdReply;
     int orderNr;
-
+    queue_t *requestsQueue;
+    bank_account_t **bankAccounts; /*array de contas*/
 } BankOffice_t;
 
 
 typedef struct
 {
-    bank_account_t *adminAccount;
     bank_account_t **bankAccounts; /*array de contas*/
     BankOffice_t ** eletronicCounter; /*array de bankoffices*/
     int bankOfficesNo;
     int sLogFd;
     int fifoFd;
-    tlv_request_t buffer[1];
-
+    queue_t *requestsQueue;
 } Server_t;
 
 //====================================================================================================================================
@@ -231,8 +230,7 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *) arg;
     while (1)
     {
-        readRequest(&(bankOffice->request));
-        validateRequest(bankOffice);
+        readRequest(bankOffice->requestsQueue,&(bankOffice->request));
     }
 }
 //====================================================================================================================================
@@ -247,6 +245,7 @@ void createBankOffices(Server_t *server)
     {
         allocateBankOffice(server->eletronicCounter[i]);
         pthread_create(&server->eletronicCounter[i]->tid, NULL,runBankOffice,NULL);
+        server->eletronicCounter[i]->requestsQueue = server->requestsQueue;
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
     }
 }
@@ -254,6 +253,7 @@ void createBankOffices(Server_t *server)
 void freeBankOffice(BankOffice_t * th) {
     free(th->reply);
     free(th->request);
+    freeQueue(th->requestsQueue);
     free(th);
 }
 //====================================================================================================================================
@@ -266,7 +266,7 @@ void closeBankOffices(Server_t *server)
     }
 }
 //====================================================================================================================================
-bank_account_t *createBankAccount(Server_t *server, int id, int balance, char *password)
+void createBankAccount(Server_t *server, int id, int balance, char *password)
 {
     bank_account_t *account = (bank_account_t *)malloc(sizeof(bank_account_t));
     account->account_id = id;
@@ -276,7 +276,7 @@ bank_account_t *createBankAccount(Server_t *server, int id, int balance, char *p
     strcpy(hashInput, password);
     strcat(hashInput, account->salt);
     generateHash(hashInput, account->hash, "sha256sum");
-    return account;
+    server->bankAccounts[id] = account;
 }
 //====================================================================================================================================
 void destroyBankAccount(bank_account_t * bank_account) {
@@ -388,8 +388,7 @@ Server_t *initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *
 
     Server_t *server = (Server_t *)malloc(sizeof(Server_t));
 
-    server->adminAccount = (bank_account_t *)malloc(sizeof(bank_account_t));
-    server->adminAccount = createBankAccount(server, ADMIN_ACCOUNT_ID, ADMIN_ACCOUNT_BALLANCE, adminPassword);
+    createBankAccount(server,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
 
     server->bankAccounts = (bank_account_t **)malloc(sizeof(bank_account_t)* MAX_BANK_ACCOUNTS);
 
@@ -452,8 +451,6 @@ int closeServer(Server_t *server)
 
     free(server->bankAccounts);/*tb e necessario fazer um ciclo com numero de contas*/
 
-    destroyBankAccount(server->adminAccount);
-
     free(server);
 
     closeServerFifo();
@@ -471,7 +468,10 @@ void readRequestServer(Server_t *server) {
                 close(server->fifoFd);
                 openFifo(SERVER_FIFO_PATH);
             }
-            else writeRequest(&request);
+            else {
+                
+                writeRequest(server->requestsQueue,&request);
+            }
         }
     }
 }
