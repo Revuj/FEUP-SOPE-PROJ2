@@ -9,11 +9,10 @@
 #include <errno.h>
 #include <signal.h>
 
+#include "options.h"
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
-#include "../log.c"
-#include "options.h"
 
 #define LENGTH_NAME 20
 #define FIFO_LENGTH 20

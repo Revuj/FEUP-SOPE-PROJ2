@@ -2,7 +2,6 @@
 #include "options.h"
 #include "../types.h"
 #include "../sope.h"
-#include "../log.c"
 
 #include <unistd.h>
 #include <stdlib.h>

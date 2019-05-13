@@ -1,4 +1,4 @@
-OBJECTS = user.o options.o
+OBJECTS = user.o options.o log.o
 ONAME = user
 
 all: $(OBJECTS)

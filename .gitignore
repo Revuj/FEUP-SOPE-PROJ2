@@ -6,11 +6,6 @@
 .history
 
 ### C ###
-# Ignore all
-*
-
-# Unignore all with extensions
-!*.*
 
 # Prerequisites
 *.d

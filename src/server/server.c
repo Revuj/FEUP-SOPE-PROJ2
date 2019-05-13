@@ -309,7 +309,7 @@ int checkBalance(Server_t *server, int id)
 //====================================================================================================================================
 int addBalance(Server_t *server, int id, int balance)
 {
-    int newBalance = server->bankAccounts[id]->balance + balance;
+    unsigned int newBalance = server->bankAccounts[id]->balance + balance;
     if(newBalance > MAX_BALANCE) {
         return -1;
     }
@@ -319,7 +319,7 @@ int addBalance(Server_t *server, int id, int balance)
 //====================================================================================================================================
 int subtractBalance(Server_t *server, int id, int balance)
 {
-    int newBalance = server->bankAccounts[id]->balance - balance;
+    unsigned int newBalance = server->bankAccounts[id]->balance - balance;
     if (newBalance < MIN_BALANCE) {
         return -1;
     }
