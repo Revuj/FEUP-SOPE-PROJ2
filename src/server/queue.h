@@ -10,7 +10,7 @@ typedef struct {
 
 queue_t * createQueue(int size);
 
-void freeQueue(queue_t *queue);
+int freeQueue(queue_t *queue);
 
 void readRequest(queue_t *queue, tlv_request_t** request_ptr);
 

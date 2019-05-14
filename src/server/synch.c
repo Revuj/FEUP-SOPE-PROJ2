@@ -13,18 +13,18 @@ static pthread_mutex_t bankOffices_mutex[MAX_BANK_ACCOUNTS];
 static sem_t notFull, notEmpty;
 
 
-int intializeMutex() {
-    for(int i=0; i< MAX_BANK_OFFICES; i++ ) {
-        if (phread_mutex_init(&bankOffices_mutex[i],NULL) != 0 ) {
+int intializeMutex(int nr) {
+    for(int i=0; i< nr; i++ ) {
+        if (pthread_mutex_init(&bankOffices_mutex[i],NULL) != 0 ) {
             return 1;
         }
     }
     return 0;
 }
 
-int destroyMutex() {
-    for(int i=0; i< MAX_BANK_OFFICES; i++ ) {
-        if (phread_mutex_destroy(&bankOffices_mutex[i]) != 0 ) {
+int destroyMutex(int nr) {
+    for(int i=0; i< nr; i++ ) {
+        if (pthread_mutex_destroy(&bankOffices_mutex[i]) != 0 ) {
             return 1;
         }
     }
@@ -32,7 +32,7 @@ int destroyMutex() {
 }
 
 int bankOfficeLock(int id) {
-   if( pthread_mutex_lock(&bankOffices_mutex[id] != 0) ){
+   if( pthread_mutex_lock(&bankOffices_mutex[id]) != 0) {
         return 1;
     }
 
@@ -40,7 +40,7 @@ int bankOfficeLock(int id) {
 } 
 
 int bankOfficeUnlock(int id) {
-    if  (pthread_mutex_unlock(&bankOffices_mutex[id] !=0)) {
+    if  (pthread_mutex_unlock(&bankOffices_mutex[id]) !=0) {
         return 1;
     }
     return 0;
