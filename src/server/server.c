@@ -14,6 +14,7 @@
 
 #include "options.h"
 #include "queue.h"
+#include "synch.h"
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
@@ -532,7 +533,9 @@ int closeServer(Server_t *server)
         free(server->eletronicCounter[i]);
     }
 
-    free(server->bankAccounts);/*tb e necessario fazer um ciclo com numero de contas*/
+    for(int i = 0; i< MAX_BANK_ACCOUNTS; i++) {
+         free(server->bankAccounts);
+    }
 
     free(server);
 
@@ -578,6 +581,8 @@ int main(int argc, char **argv)
     //createBankOffices(server);
     //requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
 
+    initializeMutex(bankOffices);
+
     // /*test--a  mudar para serem threads-funcoes ja feitas*/
     // BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
     // bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
@@ -616,6 +621,7 @@ int main(int argc, char **argv)
     // free(bk);
     
     // closeBankOffices(server);
+    //destroyMutex(bankOffices);
     // freeQueue(requestsQueue);
     closeServer(server);
 }
