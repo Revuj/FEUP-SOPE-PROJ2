@@ -41,7 +41,7 @@ typedef struct {
     tlv_reply_t  *reply;
     int fdReply;
     int orderNr;
-  //  bank_account_t **bankAccounts; /*array de contas*/
+    bank_account_t **bankAccounts; /*array de contas*/
 } BankOffice_t;
 
 
@@ -97,45 +97,153 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
     
 }
 //====================================================================================================================================
-//função a ser alterada quando tivermos o buffer de contas
-void fillReply(tlv_reply_t *reply, tlv_request_t *request)
+bool accountExists(BankOffice_t * bankOffice, int id)
 {
-    reply->type = request->type;
-    reply->length = 12; // falta a outra length
+    if (bankOffice->bankAccounts + id == NULL)
+        return false;
+    return true;
+}
+//====================================================================================================================================
+bool validateLogin(BankOffice_t *bankOffice)
+{
+    //nao ta a ser usado a pass no generatehash
+    int id = bankOffice->request->value.header.account_id;
+    char hash[HASH_LEN + 1];
+    char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
+    generateHash(hashInput, hash, "sha256sum");
 
-    switch (reply->type)
+    if (accountExists(bankOffice, id) || strcmp(hash, bankOffice->bankAccounts[id]->hash))
+        return true;
+    return false;
+}
+//====================================================================================================================================
+// //a alterar
+int checkBalance(BankOffice_t *bankOffice)
+{
+    int id = bankOffice->request->value.header.account_id;
+    return bankOffice->bankAccounts[id]->balance;
+}
+//====================================================================================================================================
+int addBalance(BankOffice_t *bankOffice)
+{
+    int id = bankOffice->request->value.transfer.account_id;
+    int amount = bankOffice->request->value.transfer.amount;
+    unsigned int newBalance = bankOffice->bankAccounts[id]->balance + amount;
+    if(newBalance > MAX_BALANCE) {
+        return -1;
+    }
+    bankOffice->bankAccounts[id]->balance = newBalance;
+    return 0;
+}
+//====================================================================================================================================
+int subtractBalance(BankOffice_t *bankOffice)
+{
+    int id = bankOffice->request->value.transfer.account_id;
+    int amount = bankOffice->request->value.transfer.amount;
+    unsigned int newBalance = bankOffice->bankAccounts[id]->balance - amount;
+    if (newBalance < MIN_BALANCE) {
+        return -1;
+    }
+    bankOffice->bankAccounts[id]->balance = newBalance;
+    return 0;
+}
+//====================================================================================================================================
+int transference(BankOffice_t *bankOffice)
+{
+    if (subtractBalance(bankOffice) < 0) {
+        bankOffice->reply->value.header.ret_code = RC_NO_FUNDS;
+        return -1;
+    }
+
+    if (addBalance(bankOffice) < 0) {
+        bankOffice->reply->value.header.ret_code = RC_TOO_HIGH;
+        return -1;
+    }
+
+    return 0;
+}
+//====================================================================================================================================
+bool checkAdminOperation(BankOffice_t *bankOffice) {
+    return (bankOffice->request->value.header.account_id == 0);
+}
+//====================================================================================================================================
+void validateCreateAccount(BankOffice_t * bankOffice) {
+    bankOffice->reply->value.header.ret_code = RC_OK;
+ 
+    if(!checkAdminOperation(bankOffice))
+        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+
+ 
+    if (accountExists(bankOffice, bankOffice->request->value.create.account_id)) {
+        bankOffice->reply->value.header.ret_code = RC_ID_IN_USE;
+    }
+}
+//====================================================================================================================================
+void validateOPBalance(BankOffice_t * bankOffice) {
+    bankOffice->reply->value.header.ret_code = RC_OK;
+
+    if(checkAdminOperation(bankOffice))
+        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+}
+//====================================================================================================================================
+void validateOPTransfer(BankOffice_t * bankOffice) {
+    bankOffice->reply->value.header.ret_code = RC_OK;
+
+    if(checkAdminOperation(bankOffice))
+        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+ 
+    if (!accountExists(bankOffice, bankOffice->request->value.create.account_id)) {
+        bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
+    }
+ 
+    if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.create.account_id) {
+        bankOffice->reply->value.header.ret_code = RC_SAME_ID;
+    }
+}
+//====================================================================================================================================
+void validateShutDown(BankOffice_t * bankOffice) {
+    bankOffice->reply->value.header.ret_code = RC_OK;
+
+    if(!checkAdminOperation(bankOffice))
+        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+}
+//====================================================================================================================================
+//função a ser alterada quando tivermos o buffer de contas
+void fillReply(BankOffice_t *bankOffice)
+{
+    bankOffice->reply->type = bankOffice->request->type;
+    bankOffice->reply->length = 12; // falta a outra length
+
+    switch (bankOffice->reply->type)
     {
     case OP_CREATE_ACCOUNT:
-        reply->value.header.account_id = request->value.create.account_id;
-        reply->value.balance.balance = request->value.create.balance;
+        bankOffice->reply->value.header.account_id = bankOffice->request->value.create.account_id;
         break;
     case OP_BALANCE:
-        reply->value.header.account_id = request->value.create.account_id;
-        reply->value.balance.balance = request->value.create.balance;
+        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+        bankOffice->reply->value.balance.balance = bankOffice->bankAccounts[bankOffice->reply->value.header.account_id]->balance
         break;
     case OP_TRANSFER:
-        reply->value.header.account_id = request->value.create.account_id;
-        reply->value.transfer.balance = request->value.transfer.amount;
+        bankOffice->reply->value.header.account_id = bankOffice->request->value.create.account_id;
+        bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
         break;
     case OP_SHUTDOWN:
         //reply->value.shutdown.active_offices= nr threads ativos
-        chmod(SERVER_FIFO_PATH,0444);
-        reply->value.shutdown.active_offices = 1;
+        fchmod(SERVER_FIFO_PATH,0444);
+        bankOffice->reply->value.shutdown.active_offices = 1;
         break;
     default:
         break;
     }
-    reply->value.header.ret_code = 0; //mudar
-
 } 
-
+//====================================================================================================================================
 void removeNewLine(char *line)
 {
     char *pos;
     if ((pos = strchr(line, '\n')) != NULL)
         *pos = '\0';
 }
-
+//====================================================================================================================================
 void generateSalt(char *string)
 {
     char salt[SALT_LEN];
@@ -145,7 +253,7 @@ void generateSalt(char *string)
     }
     strcpy(string, salt);
 }
-
+//====================================================================================================================================  
 //a alterar
 void generateHash(const char *name, char *fileHash, char *algorithm)
 {
@@ -196,30 +304,16 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
 void validateRequest(BankOffice_t *bankOffice) {
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
-            if(bankOffice->request->value.header.account_id != 0) {
-                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-            }
-            //accountExists
+            validateCreateAccount(bankOffice);
             break;
         case OP_BALANCE:
-            if(bankOffice->request->value.header.account_id == 0) {
-                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-            }
+            validateOPBalance(bankOffice);
             break;
         case OP_TRANSFER:
-            if(bankOffice->request->value.header.account_id == 0) {
-                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-            }
-            //accountExists
-            if(bankOffice->request->value.header.account_id == bankOffice->request->value.transfer.account_id) {
-                bankOffice->reply->value.header.ret_code = RC_SAME_ID;
-            }
-            //saldoinsuficiente
+            validateOPTransfer(bankOffice);
             break;
         case OP_SHUTDOWN:
-            if(bankOffice->request->value.header.account_id != 0) {
-                bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-            }
+            validateShutDown(bankOffice);
             break;
         default:
             break;
@@ -233,6 +327,19 @@ void *runBankOffice(void *arg)
     {
         readRequest(requestsQueue,&(bankOffice->request));
         logRequest(STDOUT_FILENO, bankOffice->orderNr, bankOffice->request);
+        if(validateLogin(bankOffice))
+            validateRequest(bankOffice);
+            if(bankOffice->reply->value.header.ret_code == RC_OK)
+                switch (bankOffice->request->type)
+                {
+                case OP_CREATE_ACCOUNT:
+                    //crea
+                    break;
+                default:
+                    break;
+                }
+            }
+
     }
 }
 //====================================================================================================================================
@@ -286,60 +393,6 @@ void createBankAccount(Server_t *server, int id, int balance, char *password)
 //====================================================================================================================================
 void destroyBankAccount(bank_account_t * bank_account) {
     free(bank_account);
-}
-//====================================================================================================================================
-bool accountExists(Server_t *server, int id)
-{
-    if (server->bankAccounts + id == NULL)
-        return false;
-    return true;
-}
-//====================================================================================================================================
-bool validateLogin(Server_t *server, int id, char *password)
-{
-    char hash[HASH_LEN + 1];
-    char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
-    generateHash(hashInput, hash, "sha256sum");
-
-    if (accountExists(server, id) || strcmp(hash, server->bankAccounts[id]->hash))
-        return true;
-    return false;
-}
-//====================================================================================================================================
-// //a alterar
-int checkBalance(Server_t *server, int id)
-{
-    return server->bankAccounts[id]->balance;
-}
-//====================================================================================================================================
-int addBalance(Server_t *server, int id, int balance)
-{
-    unsigned int newBalance = server->bankAccounts[id]->balance + balance;
-    if(newBalance > MAX_BALANCE) {
-        return -1;
-    }
-    server->bankAccounts[id]->balance = newBalance;
-    return 0;
-}
-//====================================================================================================================================
-int subtractBalance(Server_t *server, int id, int balance)
-{
-    unsigned int newBalance = server->bankAccounts[id]->balance - balance;
-    if (newBalance < MIN_BALANCE) {
-        return -1;
-    }
-    server->bankAccounts[id]->balance -= balance;
-    return 0;
-}
-//====================================================================================================================================
-int transference(Server_t *server, int senderId, int receiverId, int balance)
-{
-
-    if (subtractBalance(server, senderId, balance) < 0)
-        return -1;
-
-    addBalance(server, receiverId, balance);
-    return 0;
 }
 //====================================================================================================================================
 int createFifo(char *fifoName)
