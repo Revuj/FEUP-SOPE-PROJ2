@@ -99,7 +99,7 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
 //====================================================================================================================================
 bool accountExists(BankOffice_t * bankOffice, int id)
 {
-    if (bankOffice->bankAccounts + id == NULL)
+    if (!bankOffice->bankAccounts [id])
         return false;
     return true;
 }
@@ -176,7 +176,7 @@ bool validateLogin(BankOffice_t *bankOffice)
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
     generateHash(hashInput, hash, "sha256sum");
 
-    if (accountExists(bankOffice, id) || strcmp(hash, bankOffice->bankAccounts[id]->hash)){
+    if (accountExists(bankOffice, id) && !strcmp(hash, bankOffice->bankAccounts[id]->hash)){
         return true;
     }
     return false;
@@ -398,7 +398,9 @@ void createBankAccount(Server_t *server, int id, int balance, char *password)
     char hashInput[HASH_LEN + MAX_PASSWORD_LEN + 1];
     strcpy(hashInput, password);
     strcat(hashInput, account->salt);
+    printf("salt = %s\n", account->salt);
     generateHash(hashInput, account->hash, "sha256sum");
+    printf("salt = %s\n", account->salt);
     server->bankAccounts[id] = account;
     logAccountCreation(server->sLogFd, id, account);
 }
@@ -455,30 +457,33 @@ int openLogText(char *logFileName)
 Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *adminPassword)
 {
     int fifoFd, logFd;
-
+ 
     Server_t *server = (Server_t *)malloc(sizeof(Server_t));
-
+ 
     server->bankAccounts = (bank_account_t **)malloc(sizeof(bank_account_t *) * MAX_BANK_ACCOUNTS);
 
+    for (int i = 0; i < MAX_BANK_ACCOUNTS; i++)
+        server->bankAccounts[i] = NULL;
+ 
     createBankAccount(server,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
-
+ 
     if (createFifo(fifoName) == -1)
         return NULL;
-
+ 
     if ((fifoFd=openFifo(fifoName)) < 0) {
         return NULL;
     }
-
+ 
     if ((logFd=openLogText(logFileName)) == -1) {
         return NULL;
     }
     /*bank offices correspondentes as threads*/
     server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
-  
+ 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
-
+ 
     return server;
 }
 //====================================================================================================================================
@@ -548,43 +553,57 @@ void readRequestServer(Server_t *server) {
 int main(int argc, char **argv)
 {
     parse_args(argc,argv);
-
+ 
     srand(time(NULL));
-
+ 
     Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, bankOffices, password);
 
+ 
     if (server == NULL)
     {
         perror("Server Initialization");
         return 1;
     }
-
+ 
     createBankOffices(server);
     requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
     // /*test--a  mudar para serem threads-funcoes ja feitas*/
     BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
     bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
     bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
-
-    int n = 0;
-
-    do
-    {
-        n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
-        if (n > 0)
-        {
-            logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
-            fillReply(bk);
-            sendReply(bk,USER_FIFO_PATH_PREFIX);            
-        }
-        sleep(1);
-
-    } while (1);
-
-    free(bk->reply);
-    free(bk->request);
-    free(bk);
-    closeBankOffices(server);
-    freeQueue(requestsQueue);
-    closeServer(server);
+    bk->bankAccounts = server->bankAccounts;
+ 
+    printf("hash account : %s\n" , bk->bankAccounts[0]->hash);
+    printf("salt account: %s\n",bk->bankAccounts[0]->salt);
+ 
+    // int n = 0;
+ 
+    // do
+    // {
+    //     n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
+    //     if (n > 0)
+    //     {
+    //         char hash[200];
+    //         char hashOutput[200];
+    //         strcpy(hash, bk->request->value.header.password);
+    //         //printf("pass request : %s\n",bk->request->value.header.password);
+    //         strcat(hash, bk->bankAccounts[0]->salt);
+    //         generateHash(hash, hashOutput, "sha256sum");
+    //         //printf("hash request = %s\n", hashOutput);
+ 
+    //         // logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
+    //         // validateRequest(bk);
+    //         // fillReply(bk);
+    //         // sendReply(bk,USER_FIFO_PATH_PREFIX);            
+    //     }
+    //     sleep(1);
+ 
+    // } while (1);
+ 
+    // free(bk->reply);
+    // free(bk->request);
+    // free(bk);
+    // closeBankOffices(server);
+    // freeQueue(requestsQueue);
+    // closeServer(server);
 }
