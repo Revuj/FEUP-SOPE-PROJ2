@@ -113,54 +113,60 @@ void generateSalt(char *string)
     }
     strcpy(string, salt);
 }
-//====================================================================================================================================  
-//a alterar
+//====================================================================================================================================
+
 void generateHash(const char *name, char *fileHash, char *algorithm)
 {
-    char command[30 + HASH_LEN + MAX_PASSWORD_LEN + 1] = "echo -n ";
-    strcat(command, name);
-    strcat(command, " | sha256sum");
-    FILE *fpin = popen(command, "r");
-    fgets(fileHash, HASH_LEN + 1, fpin);
 
-    //será necessário fazer um coprocesso (o exec não funciona por causa do simbolo de pipe: |)
+    int fd1[2];
+    int fd2[2];
 
-    // int fd[2];
-    // pid_t pid;
+    pid_t pid;
 
-    // if (pipe(fd) == PIPE_ERROR_RETURN)
-    // {
-    //     perror("Pipe Error");
-    //     exit(1);
-    // }
+    if (pipe(fd1) == PIPE_ERROR_RETURN)
+    {
+        perror("Pipe Error");
+        exit(1);
+    }
 
-    // pid = fork();
+    if (pipe(fd2) == PIPE_ERROR_RETURN)
+    {
+        perror("Pipe Error");
+        exit(1);
+    }
 
-    // if (pid > 0)
-    // {
-    //     close(fd[WRITE]);
-    //     wait(NULL);
-    //     char fileInfo[300];
-    //     read(fd[READ], fileInfo, 300);
-    //     char *fileHashCopy = strtok(fileInfo, " ");
-    //     //removeNewLine(fileHashCopy);
-    //     strcpy(fileHash, fileHashCopy);
-    //     close(fd[READ]);
-    // }
-    // else if (pid == FORK_ERROR_RETURN)
-    // {
-    //     perror("Fork error");
-    //     exit(2);
-    // }
-    // else
-    // {
-    //     close(fd[READ]);
-    //     dup2(fd[WRITE], STDOUT_FILENO);
-    //     execl("echo", "echo", "-n", "foobar", "|", algorithm, NULL);
-    //     close(fd[WRITE]);
-    // }
+    pid = fork();
+        
+    if (pid > 0)
+    {
+        close(fd2[WRITE]);
+        close(fd1[READ]);
+        
+        int n = strlen(name);
+        write(fd1[WRITE], name, n);
+        close(fd1[WRITE]);
+        
+        n = read(fd2[READ], fileHash, 100);
+        fileHash = strtok(fileHash, " ");
+        close(fd2[READ]);
+        
+    }
+    else if (pid == FORK_ERROR_RETURN)
+    {
+        perror("Fork error");
+        exit(2);
+    }
+    else
+    {
+        close(fd2[READ]);
+        close(fd1[WRITE]);
+        dup2(fd1[READ], STDIN_FILENO);
+        dup2(fd2[WRITE], STDOUT_FILENO);
+        execlp("sha256sum", "sha256sum", "-", NULL);
+        close(fd2[WRITE]);
+        close(fd1[READ]);
+    }
 }
-
 //====================================================================================================================================
 bool validateLogin(BankOffice_t *bankOffice)
 {
@@ -286,8 +292,8 @@ void fillReply(BankOffice_t *bankOffice)
         bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
         break;
     case OP_SHUTDOWN:
-        //reply->value.shutdown.active_offices= nr threads ativos
-        fchmod(bankOffice->fdReply,0444);
+        //reply->value.shutdown.ac#define PIPE_ERROR_RETURN -1tive_offices= nr threads ativos
+        chmod(SERVER_FIFO_PATH,0444);
         bankOffice->reply->value.shutdown.active_offices = 1;
         break;
     default:
@@ -301,7 +307,7 @@ void removeNewLine(char *line)
     if ((pos = strchr(line, '\n')) != NULL)
         *pos = '\0';
 }
-
+//====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
