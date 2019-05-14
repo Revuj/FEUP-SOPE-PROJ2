@@ -294,12 +294,8 @@ void fillReply(BankOffice_t *bankOffice)
         transference(bankOffice);
         break;
     case OP_SHUTDOWN:
-<<<<<<< HEAD
-        //reply->value.shutdown.ac#define PIPE_ERROR_RETURN -1tive_offices= nr threads ativos
-=======
         //reply->value.shutdown.active_offices= nr threads ativos
         bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
->>>>>>> alteracoes no server
         chmod(SERVER_FIFO_PATH,0444);
         bankOffice->reply->value.shutdown.active_offices = 1;
         break;
