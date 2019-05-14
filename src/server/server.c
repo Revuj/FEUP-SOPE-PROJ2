@@ -176,8 +176,9 @@ bool validateLogin(BankOffice_t *bankOffice)
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
     generateHash(hashInput, hash, "sha256sum");
 
-    if (accountExists(bankOffice, id) || strcmp(hash, bankOffice->bankAccounts[id]->hash))
+    if (accountExists(bankOffice, id) || strcmp(hash, bankOffice->bankAccounts[id]->hash)){
         return true;
+    }
     return false;
 }
 //====================================================================================================================================
@@ -209,6 +210,7 @@ int subtractBalance(BankOffice_t *bankOffice)
         return -1;
     }
     bankOffice->bankAccounts[id]->balance = newBalance;
+    bankOffice->reply->value.transfer.balance = newBalance;
     return 0;
 }
 //====================================================================================================================================
@@ -281,25 +283,30 @@ void fillReply(BankOffice_t *bankOffice)
     switch (bankOffice->reply->type)
     {
     case OP_CREATE_ACCOUNT:
-        bankOffice->reply->value.header.account_id = bankOffice->request->value.create.account_id;
+        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
         break;
     case OP_BALANCE:
         bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
         bankOffice->reply->value.balance.balance = bankOffice->bankAccounts[bankOffice->reply->value.header.account_id]->balance;
         break;
     case OP_TRANSFER:
-        bankOffice->reply->value.header.account_id = bankOffice->request->value.create.account_id;
-        bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
+        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+        transference(bankOffice);
         break;
     case OP_SHUTDOWN:
+<<<<<<< HEAD
         //reply->value.shutdown.ac#define PIPE_ERROR_RETURN -1tive_offices= nr threads ativos
+=======
+        //reply->value.shutdown.active_offices= nr threads ativos
+        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+>>>>>>> alteracoes no server
         chmod(SERVER_FIFO_PATH,0444);
         bankOffice->reply->value.shutdown.active_offices = 1;
         break;
     default:
         break;
     }
-} 
+}
 //====================================================================================================================================
 void removeNewLine(char *line)
 {
@@ -309,6 +316,8 @@ void removeNewLine(char *line)
 }
 //====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
+    if(validateLogin(bankOffice))
+
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
             validateCreateAccount(bankOffice);
@@ -361,6 +370,7 @@ void createBankOffices(Server_t *server)
         server->eletronicCounter[i] = (BankOffice_t *)malloc(sizeof(BankOffice_t));
         allocateBankOffice(server->eletronicCounter[i]); 
         server->eletronicCounter[i]->orderNr = i + 1;
+        server->eletronicCounter[i]->bankAccounts=server->bankAccounts;
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
     }
@@ -468,9 +478,7 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     }
     /*bank offices correspondentes as threads*/
     server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
-
-    
-
+  
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
@@ -490,7 +498,6 @@ int closeLogText(Server_t *server)
 //====================================================================================================================================
 void closeServerFifo()
 {
-
     if (unlink(SERVER_FIFO_PATH) < 0)
     {
         perror("FIFO");
@@ -534,7 +541,6 @@ void readRequestServer(Server_t *server) {
                 openFifo(SERVER_FIFO_PATH);
             }
             else {
-                
                 writeRequest(requestsQueue,&request);
             }
         }
