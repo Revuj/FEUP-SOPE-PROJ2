@@ -220,7 +220,6 @@ bool validateLogin(BankOffice_t *bankOffice)
     return false;
 }
 //====================================================================================================================================
-// //a alterar
 int checkBalance(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.header.account_id;
@@ -284,8 +283,13 @@ void validateCreateAccount(BankOffice_t * bankOffice) {
         return;
     }
 
+
+
     req_create_account_t create =  bankOffice->request->value.create;
     createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
+
+    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
+
 }
 //====================================================================================================================================
 void validateOPBalance(BankOffice_t * bankOffice) {
@@ -293,12 +297,16 @@ void validateOPBalance(BankOffice_t * bankOffice) {
 
     if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_OTHER;
+        return;
     }
 
     if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
         return;
     }
+
+    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+    bankOffice->reply->value.balance.balance = checkBalance(bankOffice);
 }
 //====================================================================================================================================
 void validateOPTransfer(BankOffice_t * bankOffice) {
@@ -316,49 +324,30 @@ void validateOPTransfer(BankOffice_t * bankOffice) {
  
     if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.header.account_id) {
         bankOffice->reply->value.header.ret_code = RC_SAME_ID;
+        return;
     }
 
     if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
         return;
     }
+
+    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+    if (transference(bankOffice) == 0)
+        bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
 }
 //====================================================================================================================================
 void validateShutDown(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
-    if(!checkAdminOperation(bankOffice))
+    if(!checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-}
-//====================================================================================================================================
-//função a ser alterada quando tivermos o buffer de contas
-void fillReply(BankOffice_t *bankOffice)
-{
-    bankOffice->reply->type = bankOffice->request->type;
-    bankOffice->reply->length = 12; // falta a outra length
-
-    switch (bankOffice->reply->type)
-    {
-    case OP_CREATE_ACCOUNT:
-        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
-        break;
-    case OP_BALANCE:
-        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-        bankOffice->reply->value.balance.balance = bankOffice->bankAccounts[bankOffice->reply->value.header.account_id]->balance;
-        break;
-    case OP_TRANSFER:
-        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-        transference(bankOffice);
-        break;
-    case OP_SHUTDOWN:
-        //reply->value.shutdown.active_offices= nr threads ativos
-        bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-        chmod(SERVER_FIFO_PATH,0444);
-        bankOffice->reply->value.shutdown.active_offices = 1;
-        break;
-    default:
-        break;
+        return;
     }
+
+    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+    chmod(SERVER_FIFO_PATH,0444);
+    bankOffice->reply->value.shutdown.active_offices = serverWrapper(NULL)->bankOfficesNo;
 }
 //====================================================================================================================================
 void removeNewLine(char *line)
@@ -373,6 +362,9 @@ void validateRequest(BankOffice_t *bankOffice) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
         return;
     }
+
+    bankOffice->reply->type = bankOffice->request->type;
+    bankOffice->reply->length = 12; // falta a outra length
  
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
@@ -632,7 +624,6 @@ int main(int argc, char **argv)
             generateHash(hashInput, hashOutput, "sha256sum"); 
             logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
             validateRequest(bk);
-            fillReply(bk);
             sendReply(bk,USER_FIFO_PATH_PREFIX);            
         }
         sleep(1);
