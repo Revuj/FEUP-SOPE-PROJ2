@@ -47,7 +47,7 @@ typedef struct {
 
 typedef struct
 {
-    bank_account_t **bankAccounts; /*array de contas*/
+    bank_account_t ** bankAccounts; /*array de contas*/
     BankOffice_t ** eletronicCounter; /*array de bankoffices*/
     int bankOfficesNo;
     int sLogFd;
@@ -56,8 +56,10 @@ typedef struct
 
 //====================================================================================================================================
 int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
-    sprintf("%s%d",prefixName, bankOffice->request->value.header.pid);
-    int fd = open(prefixName,O_WRONLY);
+    char replyFifo[64];
+    sprintf(replyFifo, "%s%d",prefixName, bankOffice->request->value.header.pid);
+
+    int fd = open(replyFifo,O_WRONLY);
 
     if (fd == -1 ) {
         return -1;
@@ -85,7 +87,6 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
     if (write(bankOffice->fdReply,bankOffice->reply,sizeof(tlv_reply_t))== -1) {
         perror("Cant write to reply fifo\n");
         return -1;
-
     }
 
     if (closeFifoReply(bankOffice) == -1) {
@@ -231,6 +232,7 @@ void *runBankOffice(void *arg)
     while (1)
     {
         readRequest(requestsQueue,&(bankOffice->request));
+        logRequest(STDOUT_FILENO, bankOffice->orderNr, bankOffice->request);
     }
 }
 //====================================================================================================================================
@@ -241,11 +243,11 @@ void allocateBankOffice(BankOffice_t * th) {
 //====================================================================================================================================
 void createBankOffices(Server_t *server)
 {
-    pthread_t tids[server->bankOfficesNo];
     for (int i = 0; i < server->bankOfficesNo; i++)
     {
         server->eletronicCounter[i] = (BankOffice_t *)malloc(sizeof(BankOffice_t));
         allocateBankOffice(server->eletronicCounter[i]); 
+        server->eletronicCounter[i]->orderNr = i + 1;
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
     }
@@ -510,10 +512,9 @@ int main(int argc, char **argv)
         n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
         if (n > 0)
         {
+            logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
             fillReply(bk->reply, bk->request);
-            sendReply(bk,USER_FIFO_PATH_PREFIX);
-            logReply(STDOUT_FILENO, ADMIN_ACCOUNT_ID, bk->reply);
-            
+            sendReply(bk,USER_FIFO_PATH_PREFIX);            
         }
         sleep(1);
 
@@ -522,6 +523,6 @@ int main(int argc, char **argv)
     free(bk->request);
     free(bk);
     closeBankOffices(server);
-    //freeQueue(requestsQueue);
+    freeQueue(requestsQueue);
     closeServer(server);
 }

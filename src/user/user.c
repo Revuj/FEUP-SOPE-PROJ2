@@ -160,6 +160,8 @@ int sendRequest(client_t *client)
         return -1;
     }
 
+    logRequest(STDOUT_FILENO, client->request->value.header.pid, client->request);
+
     return 0;
 }
 
@@ -174,7 +176,8 @@ int readReply(client_t *client)
             break;
         }
     }
-
+    
+    logReply(STDOUT_FILENO, client->request->value.header.pid, client->reply);
     cancelAlarm();
     return 0;
 }
@@ -222,6 +225,8 @@ int createTransferRequest(client_t *client, char * arguments)
     client->request->value.transfer.amount = atoi(token);
 
     client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP + WIDTH_ACCOUNT + WIDTH_BALANCE;
+
+    return 0;
 }
 
 int createShutDownRequest(client_t *client, char * arguments)
@@ -286,8 +291,6 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     readReply(client);
 
     //printf("%d %d", client->reply->value.header.ret_code, client->reply->value.balance.balance);
-
-    logRequest(STDOUT_FILENO, client->request->value.header.pid, client->request);
 
     destroyClient(client);
     //close(fd);
