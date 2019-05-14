@@ -270,80 +270,103 @@ bool checkAdminOperation(BankOffice_t *bankOffice) {
     return (bankOffice->request->value.header.account_id == 0);
 }
 //====================================================================================================================================
-void validateCreateAccount(BankOffice_t * bankOffice) {
+int validateCreateAccount(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
  
     if(!checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-        return;
+        return -1;
     }
 
     if (accountExists(bankOffice, bankOffice->request->value.create.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_IN_USE;
-        return;
+        return -2;
     }
 
-
-
-    req_create_account_t create =  bankOffice->request->value.create;
-    createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
-
-    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
+    return 0;
 
 }
 //====================================================================================================================================
-void validateOPBalance(BankOffice_t * bankOffice) {
+int validateOPBalance(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
     if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_OTHER;
-        return;
+        return -1;
     }
 
     if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-        return;
+        return -2;
     }
 
-    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-    bankOffice->reply->value.balance.balance = checkBalance(bankOffice);
+    return 0;
+
 }
 //====================================================================================================================================
-void validateOPTransfer(BankOffice_t * bankOffice) {
+int validateOPTransfer(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
     if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-        return;
+        return -1;
     }
  
     if (!accountExists(bankOffice, bankOffice->request->value.transfer.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
-        return;
+        return -2;
     }
  
     if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.header.account_id) {
         bankOffice->reply->value.header.ret_code = RC_SAME_ID;
-        return;
+        return -3;
     }
 
     if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
-        return;
+        return -4;
     }
+
+    return 0;
+
+}
+//====================================================================================================================================
+int validateShutDown(BankOffice_t * bankOffice) {
+    bankOffice->reply->value.header.ret_code = RC_OK;
+
+    if(!checkAdminOperation(bankOffice)) {
+        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+        return -1;
+    }
+
+    return 0;
+}
+//====================================================================================================================================
+void OPCreateAccount(BankOffice_t * bankOffice) {
+    validateCreateAccount(bankOffice);
+
+    req_create_account_t create =  bankOffice->request->value.create;
+    createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
+    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
+}
+//====================================================================================================================================
+void OPBalance(BankOffice_t * bankOffice) {
+    validateOPBalance(bankOffice);  
+
+    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+    bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
+}
+//====================================================================================================================================
+void OPTransfer(BankOffice_t * bankOffice) {
+    validateOPTransfer(bankOffice);    
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
     if (transference(bankOffice) == 0)
         bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
 }
 //====================================================================================================================================
-void validateShutDown(BankOffice_t * bankOffice) {
-    bankOffice->reply->value.header.ret_code = RC_OK;
-
-    if(!checkAdminOperation(bankOffice)) {
-        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
-        return;
-    }
+void OPShutDown(BankOffice_t * bankOffice) {
+    validateShutDown(bankOffice);    
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
     chmod(SERVER_FIFO_PATH,0444);
@@ -368,16 +391,16 @@ void validateRequest(BankOffice_t *bankOffice) {
  
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
-            validateCreateAccount(bankOffice);
+            OPCreateAccount(bankOffice);
             break;
         case OP_BALANCE:
-            validateOPBalance(bankOffice);
+            OPBalance(bankOffice);
             break;
         case OP_TRANSFER:
-            validateOPTransfer(bankOffice);
+            OPTransfer(bankOffice);
             break;
         case OP_SHUTDOWN:
-            validateShutDown(bankOffice);
+            OPShutDown(bankOffice);
             break;
         default:
             break;
