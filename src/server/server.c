@@ -156,7 +156,7 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
         close(fd1[WRITE]);
         n = read(fd2[READ], fileHash, HASH_LEN);
         char * fileHashCopy = strtok(fileHash, " ");
-
+        fileHashCopy[HASH_LEN] = '\0';
         copyString(fileHash, fileHashCopy);
         close(fd2[READ]);
         
@@ -180,12 +180,16 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
 //====================================================================================================================================
 bool validateLogin(BankOffice_t *bankOffice)
 {
-    //nao ta a ser usado a pass no generatehash
     int id = bankOffice->request->value.header.account_id;
     char hash[HASH_LEN + 1];
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
+    printf("password = %s\n", bankOffice->request->value.header.password);
+    strcpy(hashInput, bankOffice->request->value.header.password);
+    strcat(hashInput,  bankOffice->bankAccounts[id]->salt);
+    printf("hash input = %s\n", hashInput);
     generateHash(hashInput, hash, "sha256sum");
 
+    printf("strcmp:\n --- %s\n --- %s\n", hash, bankOffice->bankAccounts[id]->hash);
     if (accountExists(bankOffice, id) && !strcmp(hash, bankOffice->bankAccounts[id]->hash)){
         return true;
     }
@@ -322,8 +326,11 @@ void removeNewLine(char *line)
 }
 //====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
-    if(validateLogin(bankOffice))
-
+    if(!validateLogin(bankOffice)) {
+        bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
+        return;
+    }
+ 
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
             validateCreateAccount(bankOffice);
@@ -347,19 +354,19 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
     while (1)
     {
-        readRequest(requestsQueue, &(bankOffice->request));
-        logRequest(STDOUT_FILENO, bankOffice->orderNr, bankOffice->request);
-        if (validateLogin(bankOffice))
-            validateRequest(bankOffice);
-        if (bankOffice->reply->value.header.ret_code == RC_OK)
-            switch (bankOffice->request->type)
-            {
-            case OP_CREATE_ACCOUNT:
-                //crea
-                break;
-            default:
-                break;
-            }
+        // readRequest(requestsQueue, &(bankOffice->request));
+        // logRequest(STDOUT_FILENO, bankOffice->orderNr, bankOffice->request);
+        // if (validateLogin(bankOffice))
+        //     validateRequest(bankOffice);
+        // if (bankOffice->reply->value.header.ret_code == RC_OK)
+        //     switch (bankOffice->request->type)
+        //     {
+        //     case OP_CREATE_ACCOUNT:
+        //         //crea
+        //         break;
+        //     default:
+        //         break;
+        //     }
     }
 }
 
@@ -385,7 +392,6 @@ void createBankOffices(Server_t *server)
 void freeBankOffice(BankOffice_t * th) {
     free(th->reply);
     free(th->request);
-    freeQueue(requestsQueue);
     free(th);
 }
 //====================================================================================================================================
@@ -575,47 +581,47 @@ int main(int argc, char **argv)
         return 1;
     }
  
-    //createBankOffices(server);
-    //requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
+    createBankOffices(server);
+    requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
 
-    // /*test--a  mudar para serem threads-funcoes ja feitas*/
-    // BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
-    // bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
-    // bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
-    // bk->bankAccounts = server->bankAccounts;
+    /*test--a  mudar para serem threads-funcoes ja feitas*/
+    BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
+    bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
+    bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
+    bk->bankAccounts = server->bankAccounts;
  
-   // printf("hash account : %s\n" , bk->bankAccounts[0]->hash);
-    //printf("salt account: %s\n",bk->bankAccounts[0]->salt);
+   printf("hash account : %s\n" , bk->bankAccounts[0]->hash);
+    printf("salt account: %s\n",bk->bankAccounts[0]->salt);
  
-    // int n = 0;
+    int n = 0;
  
-    // do
-    // {
-    //     //n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
-    //     if (n > 0)
-    //     {
-    //         // char hash[200];
-    //         // char hashOutput[200];
-    //         //strcpy(hash, bk->request->value.header.password);
-    //         //printf("pass request : %s\n",bk->request->value.header.password);
-    //         //strcat(hash, bk->bankAccounts[0]->salt);
-    //         //generateHash(hash, hashOutput, "sha256sum");
-    //         //printf("hash request = %s\n", hashOutput);
+    do
+    {
+        n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
+        if (n > 0)
+        {
+            char hashInput[strlen(bk->request->value.header.password) + HASH_LEN + 1];
+            char hashOutput[HASH_LEN + 1];
+            strcpy(hashInput, bk->request->value.header.password);
+            printf("pass request : %s\n",bk->request->value.header.password);
+            strcat(hashInput, bk->bankAccounts[0]->salt);
+            generateHash(hashInput, hashOutput, "sha256sum");
+            printf("hash request = %s\n", hashOutput);
  
-    //         // logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
-    //         // validateRequest(bk);
-    //         // fillReply(bk);
-    //         // sendReply(bk,USER_FIFO_PATH_PREFIX);            
-    //     }
-    //     sleep(1);
+            logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
+            validateRequest(bk);
+            fillReply(bk);
+            sendReply(bk,USER_FIFO_PATH_PREFIX);            
+        }
+        sleep(1);
  
-    // } while (1);
+    } while (1);
  
-    // free(bk->reply);
-    // free(bk->request);
-    // free(bk);
-    
-    // closeBankOffices(server);
-    // freeQueue(requestsQueue);
+    free(bk->reply);
+    free(bk->request);
+    free(bk);
+
+    closeBankOffices(server);
+    freeQueue(requestsQueue);
     closeServer(server);
 }
