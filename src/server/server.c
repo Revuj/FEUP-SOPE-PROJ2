@@ -24,12 +24,6 @@
 #define PIPE_ERROR_RETURN -1
 #define FORK_ERROR_RETURN -1
 
-// typedef struct {
-//     pthread_mutex_t bufferLock;
-//     pthread_cond_t full;
-//     pthread_cond_t empty;
-// } Shared_memory;
-
 pthread_mutex_t bufferLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
@@ -55,6 +49,20 @@ typedef struct
     int fifoFd;
 } Server_t;
 
+//====================================================================================================================================
+Server_t * serverWrapper(Server_t * server)
+{
+    static Server_t *compServer;
+    if (server == NULL)
+    {
+    }
+    else
+    {
+        compServer = server;
+    }
+
+    return compServer;
+}
 //====================================================================================================================================
 int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
     char replyFifo[64];
@@ -179,6 +187,24 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
     }
 }
 //====================================================================================================================================
+void createBankAccount(Server_t *server, int id, int balance, char *password)
+{
+    bank_account_t *account = (bank_account_t *)malloc(sizeof(bank_account_t));
+    account->account_id = id;
+    account->balance = balance;
+    generateSalt(account->salt);
+    char hashInput[HASH_LEN + MAX_PASSWORD_LEN + 1];
+    snprintf(hashInput, HASH_LEN + MAX_PASSWORD_LEN + 1, "%s%s",password, account->salt);
+    generateHash(hashInput, account->hash, "sha256sum");
+    server->bankAccounts[id] = account;
+    logAccountCreation(server->sLogFd, id, account);
+
+}
+//====================================================================================================================================
+void destroyBankAccount(bank_account_t * bank_account) {
+    free(bank_account);
+}
+//====================================================================================================================================
 bool validateLogin(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.header.account_id;
@@ -248,34 +274,53 @@ bool checkAdminOperation(BankOffice_t *bankOffice) {
 void validateCreateAccount(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
  
-    if(!checkAdminOperation(bankOffice))
+    if(!checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+        return;
+    }
 
- 
     if (accountExists(bankOffice, bankOffice->request->value.create.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_IN_USE;
+        return;
     }
+
+    req_create_account_t create =  bankOffice->request->value.create;
+    createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
 }
 //====================================================================================================================================
 void validateOPBalance(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
-    if(checkAdminOperation(bankOffice))
+    if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
+        bankOffice->reply->value.header.ret_code = RC_OTHER;
+    }
+
+    if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+        return;
+    }
 }
 //====================================================================================================================================
 void validateOPTransfer(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
-    if(checkAdminOperation(bankOffice))
+    if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
- 
-    if (!accountExists(bankOffice, bankOffice->request->value.create.account_id)) {
-        bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
+        return;
     }
  
-    if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.create.account_id) {
+    if (!accountExists(bankOffice, bankOffice->request->value.transfer.account_id)) {
+        bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
+        return;
+    }
+ 
+    if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.header.account_id) {
         bankOffice->reply->value.header.ret_code = RC_SAME_ID;
+    }
+
+    if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
+        bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
+        return;
     }
 }
 //====================================================================================================================================
@@ -403,24 +448,6 @@ void closeBankOffices(Server_t *server)
     free(server->eletronicCounter);
 }
 //====================================================================================================================================
-void createBankAccount(Server_t *server, int id, int balance, char *password)
-{
-    bank_account_t *account = (bank_account_t *)malloc(sizeof(bank_account_t));
-    account->account_id = id;
-    account->balance = balance;
-    generateSalt(account->salt);
-    char hashInput[HASH_LEN + MAX_PASSWORD_LEN + 1];
-    snprintf(hashInput, HASH_LEN + MAX_PASSWORD_LEN + 1, "%s%s",password, account->salt);
-    generateHash(hashInput, account->hash, "sha256sum");
-    server->bankAccounts[id] = account;
-    logAccountCreation(server->sLogFd, id, account);
-
-}
-//====================================================================================================================================
-void destroyBankAccount(bank_account_t * bank_account) {
-    free(bank_account);
-}
-//====================================================================================================================================
 int createFifo(char *fifoName)
 {
     if (mkfifo(fifoName, S_IRUSR | S_IWUSR))
@@ -495,7 +522,7 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
- 
+
     return server;
 }
 //====================================================================================================================================
@@ -579,6 +606,7 @@ int main(int argc, char **argv)
         return 1;
     }
  
+    serverWrapper(server);
     createBankOffices(server);
     requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
 
