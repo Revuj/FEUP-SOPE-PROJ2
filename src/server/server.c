@@ -14,6 +14,7 @@
 
 #include "options.h"
 #include "queue.h"
+#include "synch.h"
 #include "../sope.h"
 #include "../types.h"
 #include "../constants.h"
@@ -183,13 +184,10 @@ bool validateLogin(BankOffice_t *bankOffice)
     int id = bankOffice->request->value.header.account_id;
     char hash[HASH_LEN + 1];
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
-    printf("password = %s\n", bankOffice->request->value.header.password);
     strcpy(hashInput, bankOffice->request->value.header.password);
     strcat(hashInput,  bankOffice->bankAccounts[id]->salt);
-    printf("hash input = %s\n", hashInput);
     generateHash(hashInput, hash, "sha256sum");
 
-    printf("strcmp:\n --- %s\n --- %s\n", hash, bankOffice->bankAccounts[id]->hash);
     if (accountExists(bankOffice, id) && !strcmp(hash, bankOffice->bankAccounts[id]->hash)){
         return true;
     }
@@ -416,8 +414,6 @@ void createBankAccount(Server_t *server, int id, int balance, char *password)
     generateHash(hashInput, account->hash, "sha256sum");
     server->bankAccounts[id] = account;
     logAccountCreation(server->sLogFd, id, account);
-    printf("hash = %s\n", account->hash);
-    printf("salt = %s\n", account->salt);
 
 }
 //====================================================================================================================================
@@ -538,7 +534,9 @@ int closeServer(Server_t *server)
         free(server->eletronicCounter[i]);
     }
 
-    free(server->bankAccounts);/*tb e necessario fazer um ciclo com numero de contas*/
+    for(int i = 0; i< MAX_BANK_ACCOUNTS; i++) {
+         free(server->bankAccounts);
+    }
 
     free(server);
 
@@ -584,15 +582,14 @@ int main(int argc, char **argv)
     createBankOffices(server);
     requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
 
-    /*test--a  mudar para serem threads-funcoes ja feitas*/
+    initializeMutex(bankOffices);
+
+    // /*test--a  mudar para serem threads-funcoes ja feitas*/
     BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
     bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
     bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
     bk->bankAccounts = server->bankAccounts;
- 
-   printf("hash account : %s\n" , bk->bankAccounts[0]->hash);
-    printf("salt account: %s\n",bk->bankAccounts[0]->salt);
- 
+  
     int n = 0;
  
     do
@@ -603,11 +600,8 @@ int main(int argc, char **argv)
             char hashInput[strlen(bk->request->value.header.password) + HASH_LEN + 1];
             char hashOutput[HASH_LEN + 1];
             strcpy(hashInput, bk->request->value.header.password);
-            printf("pass request : %s\n",bk->request->value.header.password);
             strcat(hashInput, bk->bankAccounts[0]->salt);
-            generateHash(hashInput, hashOutput, "sha256sum");
-            printf("hash request = %s\n", hashOutput);
- 
+            generateHash(hashInput, hashOutput, "sha256sum"); 
             logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
             validateRequest(bk);
             fillReply(bk);
@@ -620,8 +614,9 @@ int main(int argc, char **argv)
     free(bk->reply);
     free(bk->request);
     free(bk);
-
+    
     closeBankOffices(server);
+    destroyMutex(bankOffices);
     freeQueue(requestsQueue);
     closeServer(server);
 }

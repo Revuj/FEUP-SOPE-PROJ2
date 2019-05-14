@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "synch.h": "c",
+        "stdio.h": "c",
+        "unistd.h": "c",
+        "queue.h": "c",
+        "options.h": "c",
+        "mman.h": "c"
+    }
+}

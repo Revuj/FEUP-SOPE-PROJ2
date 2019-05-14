@@ -7,13 +7,14 @@
 #include "../constants.h"
 #include <pthread.h>
 #include <semaphore.h>
+#include "synch.h"
 
 
 static pthread_mutex_t bankOffices_mutex[MAX_BANK_ACCOUNTS];
 static sem_t notFull, notEmpty;
 
 
-int intializeMutex(int nr) {
+int initializeMutex(int nr) {
     for(int i=0; i< nr; i++ ) {
         if (pthread_mutex_init(&bankOffices_mutex[i],NULL) != 0 ) {
             return 1;
