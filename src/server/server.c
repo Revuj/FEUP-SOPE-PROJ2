@@ -104,6 +104,64 @@ bool accountExists(BankOffice_t * bankOffice, int id)
     return true;
 }
 //====================================================================================================================================
+void generateSalt(char *string)
+{
+    char salt[SALT_LEN];
+    for (int i = 0; i < SALT_LEN; i++)
+    {
+        sprintf(salt + i, "%x", rand() % 16);
+    }
+    strcpy(string, salt);
+}
+//====================================================================================================================================  
+//a alterar
+void generateHash(const char *name, char *fileHash, char *algorithm)
+{
+    char command[30 + HASH_LEN + MAX_PASSWORD_LEN + 1] = "echo -n ";
+    strcat(command, name);
+    strcat(command, " | sha256sum");
+    FILE *fpin = popen(command, "r");
+    fgets(fileHash, HASH_LEN + 1, fpin);
+
+    //será necessário fazer um coprocesso (o exec não funciona por causa do simbolo de pipe: |)
+
+    // int fd[2];
+    // pid_t pid;
+
+    // if (pipe(fd) == PIPE_ERROR_RETURN)
+    // {
+    //     perror("Pipe Error");
+    //     exit(1);
+    // }
+
+    // pid = fork();
+
+    // if (pid > 0)
+    // {
+    //     close(fd[WRITE]);
+    //     wait(NULL);
+    //     char fileInfo[300];
+    //     read(fd[READ], fileInfo, 300);
+    //     char *fileHashCopy = strtok(fileInfo, " ");
+    //     //removeNewLine(fileHashCopy);
+    //     strcpy(fileHash, fileHashCopy);
+    //     close(fd[READ]);
+    // }
+    // else if (pid == FORK_ERROR_RETURN)
+    // {
+    //     perror("Fork error");
+    //     exit(2);
+    // }
+    // else
+    // {
+    //     close(fd[READ]);
+    //     dup2(fd[WRITE], STDOUT_FILENO);
+    //     execl("echo", "echo", "-n", "foobar", "|", algorithm, NULL);
+    //     close(fd[WRITE]);
+    // }
+}
+
+//====================================================================================================================================
 bool validateLogin(BankOffice_t *bankOffice)
 {
     //nao ta a ser usado a pass no generatehash
@@ -221,7 +279,7 @@ void fillReply(BankOffice_t *bankOffice)
         break;
     case OP_BALANCE:
         bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-        bankOffice->reply->value.balance.balance = bankOffice->bankAccounts[bankOffice->reply->value.header.account_id]->balance
+        bankOffice->reply->value.balance.balance = bankOffice->bankAccounts[bankOffice->reply->value.header.account_id]->balance;
         break;
     case OP_TRANSFER:
         bankOffice->reply->value.header.account_id = bankOffice->request->value.create.account_id;
@@ -229,7 +287,7 @@ void fillReply(BankOffice_t *bankOffice)
         break;
     case OP_SHUTDOWN:
         //reply->value.shutdown.active_offices= nr threads ativos
-        fchmod(SERVER_FIFO_PATH,0444);
+        fchmod(bankOffice->fdReply,0444);
         bankOffice->reply->value.shutdown.active_offices = 1;
         break;
     default:
@@ -243,64 +301,7 @@ void removeNewLine(char *line)
     if ((pos = strchr(line, '\n')) != NULL)
         *pos = '\0';
 }
-//====================================================================================================================================
-void generateSalt(char *string)
-{
-    char salt[SALT_LEN];
-    for (int i = 0; i < SALT_LEN; i++)
-    {
-        sprintf(salt + i, "%x", rand() % 16);
-    }
-    strcpy(string, salt);
-}
-//====================================================================================================================================  
-//a alterar
-void generateHash(const char *name, char *fileHash, char *algorithm)
-{
-    char command[30 + HASH_LEN + MAX_PASSWORD_LEN + 1] = "echo -n ";
-    strcat(command, name);
-    strcat(command, " | sha256sum");
-    FILE *fpin = popen(command, "r");
-    fgets(fileHash, HASH_LEN + 1, fpin);
 
-    //será necessário fazer um coprocesso (o exec não funciona por causa do simbolo de pipe: |)
-
-    // int fd[2];
-    // pid_t pid;
-
-    // if (pipe(fd) == PIPE_ERROR_RETURN)
-    // {
-    //     perror("Pipe Error");
-    //     exit(1);
-    // }
-
-    // pid = fork();
-
-    // if (pid > 0)
-    // {
-    //     close(fd[WRITE]);
-    //     wait(NULL);
-    //     char fileInfo[300];
-    //     read(fd[READ], fileInfo, 300);
-    //     char *fileHashCopy = strtok(fileInfo, " ");
-    //     //removeNewLine(fileHashCopy);
-    //     strcpy(fileHash, fileHashCopy);
-    //     close(fd[READ]);
-    // }
-    // else if (pid == FORK_ERROR_RETURN)
-    // {
-    //     perror("Fork error");
-    //     exit(2);
-    // }
-    // else
-    // {
-    //     close(fd[READ]);
-    //     dup2(fd[WRITE], STDOUT_FILENO);
-    //     execl("echo", "echo", "-n", "foobar", "|", algorithm, NULL);
-    //     close(fd[WRITE]);
-    // }
-}
-//====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
@@ -322,26 +323,25 @@ void validateRequest(BankOffice_t *bankOffice) {
 //====================================================================================================================================
 void *runBankOffice(void *arg)
 {
-    BankOffice_t *bankOffice = (BankOffice_t *) arg;
+    BankOffice_t *bankOffice = (BankOffice_t *)arg;
     while (1)
     {
-        readRequest(requestsQueue,&(bankOffice->request));
+        readRequest(requestsQueue, &(bankOffice->request));
         logRequest(STDOUT_FILENO, bankOffice->orderNr, bankOffice->request);
-        if(validateLogin(bankOffice))
+        if (validateLogin(bankOffice))
             validateRequest(bankOffice);
-            if(bankOffice->reply->value.header.ret_code == RC_OK)
-                switch (bankOffice->request->type)
-                {
-                case OP_CREATE_ACCOUNT:
-                    //crea
-                    break;
-                default:
-                    break;
-                }
+        if (bankOffice->reply->value.header.ret_code == RC_OK)
+            switch (bankOffice->request->type)
+            {
+            case OP_CREATE_ACCOUNT:
+                //crea
+                break;
+            default:
+                break;
             }
-
     }
 }
+
 //====================================================================================================================================
 void allocateBankOffice(BankOffice_t * th) {
     th->reply=(tlv_reply_t *) malloc(sizeof(tlv_reply_t));
@@ -566,12 +566,13 @@ int main(int argc, char **argv)
         if (n > 0)
         {
             logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
-            fillReply(bk->reply, bk->request);
+            fillReply(bk);
             sendReply(bk,USER_FIFO_PATH_PREFIX);            
         }
         sleep(1);
 
     } while (1);
+
     free(bk->reply);
     free(bk->request);
     free(bk);
