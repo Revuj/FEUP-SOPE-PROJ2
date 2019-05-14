@@ -114,6 +114,15 @@ void generateSalt(char *string)
     strcpy(string, salt);
 }
 //====================================================================================================================================
+void copyString(char * destiny, char * source) {
+    int c;
+    for(c = 0; source[c] != '\0'; c++)
+    {
+        destiny[c] = source[c];
+    }
+    destiny[c] = '\0';
+}
+//====================================================================================================================================
 
 void generateHash(const char *name, char *fileHash, char *algorithm)
 {
@@ -145,9 +154,10 @@ void generateHash(const char *name, char *fileHash, char *algorithm)
         int n = strlen(name);
         write(fd1[WRITE], name, n);
         close(fd1[WRITE]);
-        
-        n = read(fd2[READ], fileHash, 100);
-        fileHash = strtok(fileHash, " ");
+        n = read(fd2[READ], fileHash, HASH_LEN);
+        char * fileHashCopy = strtok(fileHash, " ");
+
+        copyString(fileHash, fileHashCopy);
         close(fd2[READ]);
         
     }
@@ -396,13 +406,13 @@ void createBankAccount(Server_t *server, int id, int balance, char *password)
     account->balance = balance;
     generateSalt(account->salt);
     char hashInput[HASH_LEN + MAX_PASSWORD_LEN + 1];
-    strcpy(hashInput, password);
-    strcat(hashInput, account->salt);
-    printf("salt = %s\n", account->salt);
+    snprintf(hashInput, HASH_LEN + MAX_PASSWORD_LEN + 1, "%s%s",password, account->salt);
     generateHash(hashInput, account->hash, "sha256sum");
-    printf("salt = %s\n", account->salt);
     server->bankAccounts[id] = account;
     logAccountCreation(server->sLogFd, id, account);
+    printf("hash = %s\n", account->hash);
+    printf("salt = %s\n", account->salt);
+
 }
 //====================================================================================================================================
 void destroyBankAccount(bank_account_t * bank_account) {
@@ -565,30 +575,31 @@ int main(int argc, char **argv)
         return 1;
     }
  
-    createBankOffices(server);
-    requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
+    //createBankOffices(server);
+    //requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
+
     // /*test--a  mudar para serem threads-funcoes ja feitas*/
-    BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
-    bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
-    bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
-    bk->bankAccounts = server->bankAccounts;
+    // BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
+    // bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
+    // bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
+    // bk->bankAccounts = server->bankAccounts;
  
-    printf("hash account : %s\n" , bk->bankAccounts[0]->hash);
-    printf("salt account: %s\n",bk->bankAccounts[0]->salt);
+   // printf("hash account : %s\n" , bk->bankAccounts[0]->hash);
+    //printf("salt account: %s\n",bk->bankAccounts[0]->salt);
  
     // int n = 0;
  
     // do
     // {
-    //     n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
+    //     //n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
     //     if (n > 0)
     //     {
-    //         char hash[200];
-    //         char hashOutput[200];
-    //         strcpy(hash, bk->request->value.header.password);
+    //         // char hash[200];
+    //         // char hashOutput[200];
+    //         //strcpy(hash, bk->request->value.header.password);
     //         //printf("pass request : %s\n",bk->request->value.header.password);
-    //         strcat(hash, bk->bankAccounts[0]->salt);
-    //         generateHash(hash, hashOutput, "sha256sum");
+    //         //strcat(hash, bk->bankAccounts[0]->salt);
+    //         //generateHash(hash, hashOutput, "sha256sum");
     //         //printf("hash request = %s\n", hashOutput);
  
     //         // logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
@@ -603,7 +614,8 @@ int main(int argc, char **argv)
     // free(bk->reply);
     // free(bk->request);
     // free(bk);
+    
     // closeBankOffices(server);
     // freeQueue(requestsQueue);
-    // closeServer(server);
+    closeServer(server);
 }
