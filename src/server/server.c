@@ -284,24 +284,22 @@ int validateCreateAccount(BankOffice_t * bankOffice) {
     }
 
     return 0;
-
 }
 //====================================================================================================================================
 int validateOPBalance(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
-    if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
-        bankOffice->reply->value.header.ret_code = RC_OTHER;
+    if(checkAdminOperation(bankOffice)) {
+        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
         return -1;
     }
 
-    if(checkAdminOperation(bankOffice)) {
-        bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
+    if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
+        bankOffice->reply->value.header.ret_code = RC_OTHER;
         return -2;
     }
 
     return 0;
-
 }
 //====================================================================================================================================
 int validateOPTransfer(BankOffice_t * bankOffice) {
@@ -322,13 +320,7 @@ int validateOPTransfer(BankOffice_t * bankOffice) {
         return -3;
     }
 
-    if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
-        bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
-        return -4;
-    }
-
     return 0;
-
 }
 //====================================================================================================================================
 int validateShutDown(BankOffice_t * bankOffice) {
@@ -346,6 +338,7 @@ void OPCreateAccount(BankOffice_t * bankOffice) {
     validateCreateAccount(bankOffice);
 
     req_create_account_t create =  bankOffice->request->value.create;
+    printf("balance = %d\n", create.balance);
     createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
 }

@@ -90,7 +90,7 @@ int logReply(int fd, int id, const tlv_reply_t *reply) {
     case OP_CREATE_ACCOUNT: return atomicPrintf(fd, "%s\n", logBaseReplyInfo(id, buffer, reply));
     case OP_BALANCE:
       return atomicPrintf(fd, "%s %*d€\n", logBaseReplyInfo(id, buffer, reply),
-                          WIDTH_BALANCE, 5);
+                          WIDTH_BALANCE, reply->value.balance.balance);
     case OP_TRANSFER:
       return atomicPrintf(fd, "%s %*d€\n", logBaseReplyInfo(id, buffer, reply),
                           WIDTH_BALANCE, reply->value.transfer.balance);
