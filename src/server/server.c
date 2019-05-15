@@ -47,6 +47,7 @@ typedef struct
     int bankOfficesNo;
     int sLogFd;
     int fifoFd;
+    bool up;
 } Server_t;
 
 //====================================================================================================================================
@@ -62,6 +63,60 @@ Server_t * serverWrapper(Server_t * server)
     }
 
     return compServer;
+}
+//====================================================================================================================================
+int closeLogText(Server_t *server)
+{
+    if (close(server->sLogFd) < 0)
+    {
+        perror("Server Log File");
+        return -1;
+    }
+    return 0;
+}
+//====================================================================================================================================
+void closeServerFifo()
+{
+    if (unlink(SERVER_FIFO_PATH) < 0)
+    {
+        perror("FIFO");
+        exit(2);
+    }
+}
+//====================================================================================================================================
+void freeBankOffice(BankOffice_t * th) {
+    free(th->reply);
+    free(th->request);
+    free(th);
+}
+//====================================================================================================================================
+void freeBankAccounts(bank_account_t **bankAccounts) {
+    for(int i=0;i<MAX_BANK_ACCOUNTS;i++) {
+        if(!bankAccounts[i])
+            free(bankAccounts[i]);
+    }
+    free(bankAccounts);
+}
+//====================================================================================================================================
+int closeServer(Server_t *server)
+{
+    if (close(server->fifoFd) == -1) {
+        perror("Couldnt close fifo\n");
+        return 1;
+    }
+
+    if (closeLogText(server) == -1) {
+        perror("Couldnt close log text\n");
+        return 1;
+    }
+
+    freeBankAccounts(server->bankAccounts);
+
+    free(server);
+
+    closeServerFifo();
+
+    return 0;
 }
 //====================================================================================================================================
 int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
@@ -85,6 +140,16 @@ int closeFifoReply(BankOffice_t * bankOffice) {
         return -1;
 
     return 0;
+}
+//====================================================================================================================================
+void closeBankOffices(Server_t *server)
+{
+    for(int i = 0; i < server->bankOfficesNo; i++) {
+        pthread_join(server->eletronicCounter[i]->tid,NULL);
+        logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+        freeBankOffice(server->eletronicCounter[i]);
+    }
+    free(server->eletronicCounter);
 }
 //====================================================================================================================================
 int sendReply(BankOffice_t * bankOffice,char *prefixName) {
@@ -379,13 +444,23 @@ void OPTransfer(BankOffice_t * bankOffice) {
 }
 //====================================================================================================================================
 void OPShutDown(BankOffice_t * bankOffice) {
-    if (validateShutDown(bankOffice) < 0)
+    if (validateShutDown(bankOffice) != 0)
         return;  
 
+    Server_t * server = serverWrapper(NULL);
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
     chmod(SERVER_FIFO_PATH,0444);
-    bankOffice->reply->value.shutdown.active_offices = serverWrapper(NULL)->bankOfficesNo;
+    bankOffice->reply->value.shutdown.active_offices = server->bankOfficesNo;
     bankOffice->reply->length += sizeof(rep_shutdown_t);
+    server->up = false;
+
+    printf("closing banks\n");
+    closeBankOffices(server);
+    printf("closed banks\n");
+    destroyMutex(MAX_BANK_ACCOUNTS);
+    destroySems();
+    freeQueue(requestsQueue);
+    closeServer(server);
 }
 //====================================================================================================================================
 void removeNewLine(char *line)
@@ -437,7 +512,7 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
     Server_t *server = serverWrapper(NULL);
  
-    while (1) {
+    while (server->up || requestsQueue->itemsNo != 0) {
         waitNotEmpty();
         readRequest(requestsQueue, &bankOffice->request);
         postNotFull();
@@ -466,30 +541,6 @@ void createBankOffices(Server_t *server)
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
     }
-}
-//====================================================================================================================================
-void freeBankOffice(BankOffice_t * th) {
-    free(th->reply);
-    free(th->request);
-    free(th);
-}
-//====================================================================================================================================
-void freeBankAccounts(bank_account_t **bankAccounts) {
-    for(int i=0;i<MAX_BANK_ACCOUNTS;i++) {
-        if(!bankAccounts[i])
-            free(bankAccounts[i]);
-    }
-    free(bankAccounts);
-}
-//====================================================================================================================================
-void closeBankOffices(Server_t *server)
-{
-    for(int i = 0; i < server->bankOfficesNo; i++) {
-        pthread_join(server->eletronicCounter[i]->tid,NULL);
-        logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
-        freeBankOffice(server->eletronicCounter[i]);
-    }
-    free(server->eletronicCounter);
 }
 //====================================================================================================================================
 int createFifo(char *fifoName)
@@ -542,6 +593,7 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     int fifoFd, logFd;
  
     Server_t *server = (Server_t *)malloc(sizeof(Server_t));
+    server->up = true;
  
     server->bankAccounts = (bank_account_t **)malloc(sizeof(bank_account_t *) * MAX_BANK_ACCOUNTS);
 
@@ -568,46 +620,6 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     createBankAccount(server,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
 
     return server;
-}
-//====================================================================================================================================
-int closeLogText(Server_t *server)
-{
-    if (close(server->sLogFd) < 0)
-    {
-        perror("Server Log File");
-        return -1;
-    }
-    return 0;
-}
-//====================================================================================================================================
-void closeServerFifo()
-{
-    if (unlink(SERVER_FIFO_PATH) < 0)
-    {
-        perror("FIFO");
-        exit(2);
-    }
-}
-//====================================================================================================================================
-int closeServer(Server_t *server)
-{
-    if (close(server->fifoFd) == -1) {
-        perror("Couldnt close fifo\n");
-        return 1;
-    }
-
-    if (closeLogText(server) == -1) {
-        perror("Couldnt close log text\n");
-        return 1;
-    }
-
-    freeBankAccounts(server->bankAccounts);
-
-    free(server);
-
-    closeServerFifo();
-
-    return 0;
 }
 //====================================================================================================================================
 void readRequestServer(Server_t *server) {
@@ -665,10 +677,4 @@ int main(int argc, char **argv)
     createBankOffices(server);
 
     readRequestServer(server);
-
-    closeBankOffices(server);
-    destroyMutex(MAX_BANK_ACCOUNTS);
-    destroySems();
-    freeQueue(requestsQueue);
-    closeServer(server);
 }

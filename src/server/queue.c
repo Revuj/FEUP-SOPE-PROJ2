@@ -30,20 +30,17 @@ void readRequest(queue_t *queue, tlv_request_t** request_ptr) {
     *request_ptr = queue->requests[queue->read_p];
     queue->read_p = (queue->read_p + 1) % queue->size;
 
+    queue->itemsNo++;
     pthread_mutex_unlock(&queueLock);
 }
 
 void writeRequest(queue_t *queue,tlv_request_t* request) {
-        printf("10001\n");
-
     pthread_mutex_lock(&queueLock);
-        printf("10002\n");
-
 
     queue->requests[queue->write_p] = request;
     queue->write_p = (queue->write_p + 1) % queue->size;
+    queue->itemsNo--;
 
-    printf("1000\n");
     pthread_mutex_unlock(&queueLock);
 }
 
@@ -51,6 +48,7 @@ queue_t * createQueue(int size) {
     queue_t * queue = (queue_t *)malloc(sizeof(queue_t));
     queue->requests = (tlv_request_t **) malloc(size * sizeof(tlv_request_t *));
     queue->size = size;
+    queue->itemsNo = 0;
 
     if (pthread_mutex_init(&queueLock, NULL) !=0) {
         return NULL;

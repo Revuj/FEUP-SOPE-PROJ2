@@ -6,6 +6,7 @@
 typedef struct {
     tlv_request_t ** requests;
     int size, read_p, write_p;
+    int itemsNo;
 } queue_t;
 
 queue_t * createQueue(int size);

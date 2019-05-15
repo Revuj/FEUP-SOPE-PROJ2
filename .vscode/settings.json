@@ -2,6 +2,7 @@
     "files.associations": {
         "type_traits": "c",
         "constants.h": "c",
-        "errno.h": "c"
+        "errno.h": "c",
+        "semaphore.h": "c"
     }
 }
