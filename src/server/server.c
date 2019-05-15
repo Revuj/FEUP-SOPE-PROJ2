@@ -102,12 +102,9 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
 //====================================================================================================================================
 bool accountExists(BankOffice_t * bankOffice, int id)
 {
-    bankAccountLock(id);
     if (!bankOffice->bankAccounts[id]) {
-        bankAccountUnlock(id);   
         return false;
     }
-    bankAccountUnlock(id);   
 
     return true;
 }
@@ -403,13 +400,14 @@ void validateRequest(BankOffice_t *bankOffice) {
     bankOffice->reply->length = sizeof(rep_header_t);
 
     bankAccountLock(bankOffice->request->value.header.account_id);
-
     if(!validateLogin(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
+        bankAccountUnlock(bankOffice->request->value.header.account_id);
         return;
     }
 
     bankAccountUnlock(bankOffice->request->value.header.account_id);
+
 
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
@@ -444,7 +442,6 @@ void *runBankOffice(void *arg)
         readRequest(requestsQueue, &bankOffice->request);
         postNotFull();
         logRequest(server->sLogFd, bankOffice ->orderNr, bankOffice ->request);
-
         validateRequest(bankOffice);
         sendReply(bankOffice ,USER_FIFO_PATH_PREFIX);
         logReply(server->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);

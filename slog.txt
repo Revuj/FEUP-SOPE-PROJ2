@@ -1,28 +1,22 @@
-I - 00000 - 0000 b5c59082272d03bb5577084967b44bbf175a8dca4e74130687d8f1268dad85c9 ...5a7ac
-I - 00001 - OPEN  140523580049152
-I - 00002 - OPEN  140523571656448
-I - 00003 - OPEN  140523563263744
-R - 00001 - [ 62 bytes] 29196 (0000, "foobar123")            [   10 ms] CREATE   0001         20€ "12345678"
-I - 00001 - 0001 c144e0e2f6709771e49d6b3e8db128af9e38f2ae81e18526ab4077ef5a072b6b ...b1ff4
-E - 29196 - [  8 bytes] 0000   CREATE           OK
-R - 00002 - [ 62 bytes] 29220 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-I - 00002 - 0002 9a38ce64f558a7e42249a39fd96f4dae7e63cd7b2c3c321545fe88d514461f48 ...1cb52
-E - 29220 - [  8 bytes] 0000   CREATE           OK
-R - 00003 - [ 62 bytes] 29224 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29224 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00001 - [ 62 bytes] 29227 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29227 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00002 - [ 62 bytes] 29230 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29230 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00003 - [ 62 bytes] 29235 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29235 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00001 - [ 62 bytes] 29238 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29238 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00002 - [ 62 bytes] 29240 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29240 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00003 - [ 62 bytes] 29242 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29242 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00001 - [ 62 bytes] 29254 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29254 - [  8 bytes] 0000   CREATE    ID_IN_USE
-R - 00002 - [ 62 bytes] 29257 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-E - 29257 - [  8 bytes] 0000   CREATE    ID_IN_USE
+I - 00000 - 0000 d78aee4f9b4127c7038d4d9e40525a532dd0b2f4d36fa26a5e79c1701c2777a9 ...35d4a
+I - 00001 - OPEN  140401043437312
+I - 00002 - OPEN  140401035044608
+I - 00003 - OPEN  140401026651904
+R - 00001 - [ 62 bytes] 15877 (0000, "foobar123")            [   10 ms] CREATE   0002         25€ "badpass"
+I - 00002 - 0002 47909846ba56cc02a8b6936af816fbf4384c083c382f421fad530cef4f64b58e ...6ab8d
+E - 15877 - [  8 bytes] 0000   CREATE           OK
+R - 00002 - [ 62 bytes] 15880 (0000, "foobar123")            [  100 ms] CREATE   0003        100€ "nicepass"
+I - 00003 - 0003 ecae4da76c7af8995fd5bb5fab350b3e7edcb7314ac335c849ef43ffe24ee8d5 ...33598
+E - 15880 - [  8 bytes] 0000   CREATE           OK
+R - 00003 - [ 33 bytes] 15883 (0002, "badpass")              [   10 ms] BALANCE 
+E - 15883 - [ 12 bytes] 0002  BALANCE           OK         25€
+R - 00001 - [ 33 bytes] 15885 (0003, "nicepass")             [   10 ms] BALANCE 
+E - 15885 - [ 12 bytes] 0003  BALANCE           OK        100€
+R - 00002 - [ 33 bytes] 15887 (0072, "penis")                [   10 ms] BALANCE 
+E - 15887 - [  8 bytes] 0000  BALANCE   LOGIN_FAIL          0€
+R - 00003 - [ 33 bytes] 15888 (0001, "foobar123")            [   10 ms] SHUTDOWN
+E - 15888 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+R - 00001 - [ 33 bytes] 15889 (0000, "penis")                [   10 ms] SHUTDOWN
+E - 15889 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+R - 00002 - [ 33 bytes] 15891 (0000, "foobar123")            [   69 ms] SHUTDOWN
+E - 15891 - [ 12 bytes] 0000 SHUTDOWN           OK 3

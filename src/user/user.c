@@ -42,7 +42,7 @@ client_t *clientWrapper(client_t *client)
 
 int openLogText(char *logFileName)
 {
-    int fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
+    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
     if (fd == -1) 
         return -1;
     
@@ -176,6 +176,7 @@ int openReplyFifo(client_t *client)
 
 int sendRequest(client_t *client)
 {
+    printf("Sending Request\n");
     if (write(client->fifoRequest, client->request, sizeof(tlv_request_t)) < 0)
     {
         perror("Send request");

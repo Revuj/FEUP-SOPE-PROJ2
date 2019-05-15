@@ -1,2 +1,0 @@
-E - 29257 - [ 62 bytes] 29257 (0000, "foobar123")            [   10 ms] CREATE   0002         20€ "12345678"
-R - 29257 - [  8 bytes] 0000   CREATE    ID_IN_USE
