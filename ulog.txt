@@ -1,0 +1,20 @@
+E - 10527 - [ 62 bytes] 10527 (0000, "foobar123")            [  100 ms] CREATE   0004         10€ "bad_secre"
+R - 10527 - [  8 bytes] 0000   CREATE           OK
+E - 10566 - [ 41 bytes] 10566 (0004, "bad_secre")            [   50 ms] TRANSFER 0002         10€
+R - 10566 - [ 12 bytes] 0004 TRANSFER ID_NOT_FOUND         10€
+E - 10581 - [ 62 bytes] 10581 (0000, "foobar123")            [  100 ms] CREATE   0004         10€ "bad_secre"
+R - 10581 - [  8 bytes] 0000   CREATE    ID_IN_USE
+E - 10594 - [ 41 bytes] 10594 (0004, "bad_secre")            [   50 ms] TRANSFER 0002         10€
+R - 10594 - [ 12 bytes] 0004 TRANSFER ID_NOT_FOUND         10€
+E - 10619 - [  0 bytes] 10619 (0004, "bad_secre")            [   50 ms] SHUTDOWN
+R - 10619 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 10624 - [  0 bytes] 10624 (0004, "bad_secre")            [   50 ms] SHUTDOWN
+R - 10624 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 10637 - [ 33 bytes] 10637 (0004, "bad_secre")            [   50 ms] SHUTDOWN
+R - 10637 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 10652 - [ 33 bytes] 10652 (0000, "bad_secre")            [   50 ms] SHUTDOWN
+R - 10652 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+E - 10682 - [ 33 bytes] 10682 (0000, "foobar1")              [   50 ms] SHUTDOWN
+R - 10682 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+E - 10689 - [ 33 bytes] 10689 (0000, "foobar123")            [   50 ms] SHUTDOWN
+R - 10689 - [ 12 bytes] 0000 SHUTDOWN           OK 1

@@ -24,18 +24,8 @@ typedef struct
     int fifoRequest;
     int fifoReply;
     char *nameFifoAnswer;
-
+    int uLogFd;
 } client_t;
-
-static char hexa[15] = {"123456789abcdef"};
-void generateRandomSal(char *sal)
-{
-
-    for (int i = 1; i <= SALT_LEN; i++)
-    {
-        strcat(sal, &hexa[rand() % 15]);
-    }
-}
 
 client_t *clientWrapper(client_t *client)
 {
@@ -47,12 +37,28 @@ client_t *clientWrapper(client_t *client)
     {
         compClient = client;
     }
-
     return compClient;
+}
+
+int openLogText(char *logFileName)
+{
+    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
+    if (fd == -1) 
+        return -1;
+    
+    return fd;
+}
+
+void fillTimeOutReply(client_t *client) {
+    client->reply->value.header.account_id = client->request->value.header.account_id;
+    client->reply->value.header.ret_code = RC_SRV_TIMEOUT;
+    client->reply->type = client->request->type;
+    client->reply->length = sizeof(rep_header_t);
 }
 
 int destroyClient(client_t *client)
 {
+
     close(client->fifoRequest);
     free(client->request);
 
@@ -70,7 +76,11 @@ int destroyClient(client_t *client)
 
 void alarmHandler(int signo)
 {
-    destroyClient(clientWrapper(NULL));
+    client_t * client = clientWrapper(NULL);
+    fillTimeOutReply(client);
+    logReply(client->uLogFd, client->request->value.header.pid, client->reply);
+    destroyClient(client);
+    exit(1);
 }
 
 void cancelAlarm()
@@ -103,15 +113,27 @@ client_t *createClient()
     client->reply = (tlv_reply_t *)malloc(sizeof(tlv_reply_t));
     client->request->value.header.pid=getpid();
     client->nameFifoAnswer = (char *)malloc(sizeof(FIFO_LENGTH));
+    client->uLogFd = openLogText(USER_LOGFILE);
 
+    if (client->uLogFd == -1)
+        return NULL;
     return client;
+}
+
+void fillServerDownReply(client_t * client) {
+    client->reply->value.header.account_id = client->request->value.header.account_id;
+    client->reply->value.header.ret_code =  RC_SRV_DOWN;
+    client->reply->type = client->request->type;
+    client->reply->length = sizeof(rep_header_t);
 }
 
 int openRequestFifo(client_t *client)
 {
     client->fifoRequest = open(SERVER_FIFO_PATH, O_WRONLY);
     if(client->fifoRequest < 0) {
-        perror("Request fifo");
+        logRequest(client->uLogFd, client->request->value.header.pid, client->request);
+        fillServerDownReply(client);
+        logReply(client->uLogFd, client->request->value.header.pid, client->reply);
         return -1;
     }
     return 0;
@@ -160,7 +182,7 @@ int sendRequest(client_t *client)
         return -1;
     }
 
-    logRequest(STDOUT_FILENO, client->request->value.header.pid, client->request);
+    logRequest(client->uLogFd, client->request->value.header.pid, client->request);
 
     return 0;
 }
@@ -177,7 +199,7 @@ int readReply(client_t *client)
         }
     }
     
-    logReply(STDOUT_FILENO, client->request->value.header.pid, client->reply);
+    logReply(client->uLogFd, client->request->value.header.pid, client->reply);
     cancelAlarm();
     return 0;
 }
@@ -185,10 +207,6 @@ int readReply(client_t *client)
 
 int createAccountRequest(client_t *client, char * arguments)
 {
-
-    /*fill enum*/
-
-    /*fill union com info da conta a criar*/
     char *token;
 
     token = strtok(arguments, " ");
@@ -197,7 +215,7 @@ int createAccountRequest(client_t *client, char * arguments)
     client->request->value.create.balance = atoi(token);
     token = strtok(NULL, " ");
     strcpy(client->request->value.create.password, token);
-    client->request->length = MAX_PASSWORD_LEN +1 +WIDTH_OP + WIDTH_ID+ WIDTH_DELAY+WIDTH_TLV_LEN+2*WIDTH_ACCOUNT+MAX_PASSWORD_LEN+1+WIDTH_BALANCE;
+    client->request->length = sizeof(req_header_t) + sizeof(req_create_account_t);
 
     return 0;
 }
@@ -206,17 +224,16 @@ int createBalanceRequest(client_t *client, char * arguments)
 {
 
     if (strlen(arguments) != 0) {
-        return 1; /*nao deveria ter argumentos........*/
+        return 1;
 
     }
-    client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP;
+    client->request->length = sizeof(req_header_t);
 
     return 0;
 }
 
 int createTransferRequest(client_t *client, char * arguments)
 {
-    /*fill union*/
     char *token;
 
     token = strtok(arguments, " ");
@@ -224,7 +241,7 @@ int createTransferRequest(client_t *client, char * arguments)
     token = strtok(NULL, " ");
     client->request->value.transfer.amount = atoi(token);
 
-    client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP + WIDTH_ACCOUNT + WIDTH_BALANCE;
+    client->request->length = sizeof(req_header_t) + sizeof(req_transfer_t);
 
     return 0;
 }
@@ -232,11 +249,11 @@ int createTransferRequest(client_t *client, char * arguments)
 int createShutDownRequest(client_t *client, char * arguments)
 {
      if (strlen(arguments) != 0) {
-        return 1; /*nao deveria ter argumentos........*/
+        return 1; 
 
     }
 
-    client->request->length = MAX_PASSWORD_LEN + 1 + WIDTH_ID + WIDTH_DELAY + WIDTH_TLV_LEN+ WIDTH_ACCOUNT + WIDTH_OP;
+    client->request->length = sizeof(req_header_t)  ;
 
     return 0;
 }
@@ -244,18 +261,18 @@ int createShutDownRequest(client_t *client, char * arguments)
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
     client_t *client = createClient();
+
+    if (!client) {
+        perror("Could not open user logfile\n");
+        exit(1);
+    }
     
     parse_args(argc,argv,client->request);
 
-
-    if(openRequestFifo(client) != 0) {
+    if (installAlarm() != 0)
         exit(EXIT_FAILURE);
-    }
-
-    // if (installAlarm() != 0)
-    //     exit(EXIT_FAILURE);
     
-    //verificar erros nas funções de input, Vítor
+    //verificar erros nas funções de input, vAtor
     switch (client->request->type)
     {
     case OP_CREATE_ACCOUNT:
@@ -274,17 +291,21 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         createShutDownRequest(client, argv[5]);
         break;
     
-    default:
+    default:    
         break;
     }
 
-    createReplyFifo(client, USER_FIFO_PATH_PREFIX);
-
+    if(openRequestFifo(client) != 0) 
+        exit(EXIT_FAILURE);
+    
     sendRequest(client);
     
-    // clientWrapper(client);
+    clientWrapper(client);
     
-    // alarm(FIFO_TIMEOUT_SECS);
+    alarm(FIFO_TIMEOUT_SECS);
+
+    createReplyFifo(client, USER_FIFO_PATH_PREFIX);
+
 
     openReplyFifo(client);
 

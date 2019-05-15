@@ -71,6 +71,7 @@ int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
     int fd = open(replyFifo,O_WRONLY);
 
     if (fd == -1 ) {
+        bankOffice->reply->value.header.ret_code = RC_USR_DOWN;
         return -1;
     } 
     else {
@@ -80,27 +81,21 @@ int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
 }
 //====================================================================================================================================
 int closeFifoReply(BankOffice_t * bankOffice) {
-    if (close(bankOffice->fdReply) < 0) {
-        perror("Error while closing reply fifo\n");
+    if (close(bankOffice->fdReply) < 0) 
         return -1;
-    }
+
     return 0;
 }
 //====================================================================================================================================
 int sendReply(BankOffice_t * bankOffice,char *prefixName) {
-    if (openFifoReply(bankOffice,prefixName) == -1) {
-        perror("Cant open reply fifo\n");
+    if (openFifoReply(bankOffice,prefixName) == -1) 
         return -1;
-    }
+    
+    if (write(bankOffice->fdReply,bankOffice->reply,sizeof(tlv_reply_t))== -1)
+        return -1;
 
-    if (write(bankOffice->fdReply,bankOffice->reply,sizeof(tlv_reply_t))== -1) {
-        perror("Cant write to reply fifo\n");
+    if (closeFifoReply(bankOffice) == -1)
         return -1;
-    }
-
-    if (closeFifoReply(bankOffice) == -1) {
-        return -1;
-    }
 
     return 0;
     
@@ -108,11 +103,9 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
 //====================================================================================================================================
 bool accountExists(BankOffice_t * bankOffice, int id)
 {
-    printf("PLS MAN id = %d\n", id);
-    if (!bankOffice->bankAccounts[id])
+    if (!bankOffice->bankAccounts[id]) {
         return false;
-
-    printf("OK\n");
+    }
 
     return true;
 }
@@ -238,25 +231,31 @@ int checkBalance(BankOffice_t *bankOffice)
 int addBalance(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.transfer.account_id;
+    printf("id = %d\n", id);
+    printf("initial balance = %d\n", bankOffice->bankAccounts[id]->balance);
     int amount = bankOffice->request->value.transfer.amount;
-    unsigned int newBalance = bankOffice->bankAccounts[id]->balance + amount;
-    if(newBalance > MAX_BALANCE) {
+    int newBalance = bankOffice->bankAccounts[id]->balance + amount;
+
+    if(newBalance > (signed int)MAX_BALANCE) {
         return -1;
     }
+
     bankOffice->bankAccounts[id]->balance = newBalance;
+    printf("new balance = %d\n", bankOffice->bankAccounts[id]->balance);    
     return 0;
 }
 //====================================================================================================================================
 int subtractBalance(BankOffice_t *bankOffice)
 {
-    int id = bankOffice->request->value.transfer.account_id;
+    int id = bankOffice->request->value.header.account_id;
     int amount = bankOffice->request->value.transfer.amount;
-    unsigned int newBalance = bankOffice->bankAccounts[id]->balance - amount;
-    if (newBalance < MIN_BALANCE) {
+    int newBalance = bankOffice->bankAccounts[id]->balance - amount;
+
+    if (newBalance < (signed int)MIN_BALANCE) {
         return -1;
     }
+
     bankOffice->bankAccounts[id]->balance = newBalance;
-    bankOffice->reply->value.transfer.balance = newBalance;
     return 0;
 }
 //====================================================================================================================================
@@ -314,25 +313,21 @@ int validateOPBalance(BankOffice_t * bankOffice) {
 int validateOPTransfer(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
-    printf("checkingAdminOp\n");
     if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
         return -1;
     }
     
-    printf("Account Existane\n");
     if (!accountExists(bankOffice, bankOffice->request->value.transfer.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
         return -2;
     }
  
-    printf("Check same ID\n");    
     if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.header.account_id) {
         bankOffice->reply->value.header.ret_code = RC_SAME_ID;
         return -3;
     }
 
-    printf("All guchi transfer\n");
     return 0;
 }
 //====================================================================================================================================
@@ -348,7 +343,8 @@ int validateShutDown(BankOffice_t * bankOffice) {
 }
 //====================================================================================================================================
 void OPCreateAccount(BankOffice_t * bankOffice) {
-    validateCreateAccount(bankOffice);
+    if (validateCreateAccount(bankOffice) != 0)
+        return;
 
     req_create_account_t create =  bankOffice->request->value.create;
     createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
@@ -361,22 +357,29 @@ void OPBalance(BankOffice_t * bankOffice) {
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
     bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
+    bankOffice->reply->length += sizeof(rep_balance_t);
 }
 //====================================================================================================================================
 void OPTransfer(BankOffice_t * bankOffice) {
-    validateOPTransfer(bankOffice);    
+    bankOffice->reply->length += sizeof(rep_transfer_t);
+    int id = bankOffice->request->value.header.account_id;
+    bankOffice->reply->value.header.account_id = id;
+    bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
+    if (validateOPTransfer(bankOffice) != 0)
+        return;    
 
-    bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-    if (transference(bankOffice) == 0)
-        bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
+    if (transference(bankOffice) == 0) 
+        bankOffice->reply->value.transfer.balance = bankOffice->bankAccounts[id]->balance;
 }
 //====================================================================================================================================
 void OPShutDown(BankOffice_t * bankOffice) {
-    validateShutDown(bankOffice);    
+    if (validateShutDown(bankOffice) < 0)
+        return;  
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
     chmod(SERVER_FIFO_PATH,0444);
     bankOffice->reply->value.shutdown.active_offices = serverWrapper(NULL)->bankOfficesNo;
+    bankOffice->reply->length += sizeof(rep_shutdown_t);
 }
 //====================================================================================================================================
 void removeNewLine(char *line)
@@ -388,7 +391,7 @@ void removeNewLine(char *line)
 //====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
     bankOffice->reply->type = bankOffice->request->type;
-    bankOffice->reply->length = 12; // falta a outra length
+    bankOffice->reply->length = sizeof(rep_header_t);
 
     if(!validateLogin(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
@@ -419,7 +422,7 @@ void *runBankOffice(void *arg)
     while (1)
     {
         // readRequest(requestsQueue, &(bankOffice->request));
-        // logRequest(STDOUT_FILENO, bankOffice->orderNr, bankOffice->request);
+        // logRequest(serverWrapper(NULL)->sLogFd, bankOffice->orderNr, bankOffice->request);
         // if (validateLogin(bankOffice))
         //     validateRequest(bankOffice);
         // if (bankOffice->reply->value.header.ret_code == RC_OK)
@@ -511,7 +514,7 @@ int openLogText(char *logFileName)
         perror("Server Log File");
         return -1;
     }
-    return 0;
+    return fd;
 }
 //====================================================================================================================================
 Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *adminPassword)
@@ -524,8 +527,6 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
 
     for (int i = 0; i < MAX_BANK_ACCOUNTS; i++)
         server->bankAccounts[i] = NULL;
- 
-    createBankAccount(server,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
  
     if (createFifo(fifoName) == -1)
         return NULL;
@@ -543,6 +544,8 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     server->sLogFd = logFd;
     server->fifoFd = fifoFd;
     server->bankOfficesNo = bankOfficesNo;
+
+    createBankAccount(server,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
 
     return server;
 }
@@ -638,7 +641,7 @@ int main(int argc, char **argv)
     bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
     bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
     bk->bankAccounts = server->bankAccounts;
-  
+    
     int n = 0;
  
     do
@@ -651,9 +654,12 @@ int main(int argc, char **argv)
             strcpy(hashInput, bk->request->value.header.password);
             strcat(hashInput, bk->bankAccounts[0]->salt);
             generateHash(hashInput, hashOutput, "sha256sum"); 
-            logRequest(STDOUT_FILENO, bk->orderNr, bk->request);
+            logRequest(serverWrapper(NULL)->sLogFd, bk->orderNr, bk->request);
             validateRequest(bk);
-            sendReply(bk,USER_FIFO_PATH_PREFIX);            
+            sendReply(bk,USER_FIFO_PATH_PREFIX);
+            logReply(serverWrapper(NULL)->sLogFd, bk->request->value.header.pid, bk->reply);
+            memset(bk->reply, 0, sizeof(tlv_reply_t));
+            memset(bk->request, 0, sizeof(tlv_request_t));            
         }
         sleep(1);
  

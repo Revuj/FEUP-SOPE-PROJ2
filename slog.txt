@@ -1,0 +1,31 @@
+I - 00001 - OPEN  139972344436480
+I - 00000 - 0000 6364930c992e76ad6ce759ac59e5231967dfaec37e2e4cca8a2d3c9857d7ae01 ...30277
+I - 00001 - OPEN  140629556696832
+I - 00000 - 0000 67adad25417f3a95a6e65fc44a4074cdb6b64db8e272c17675cc5919359ba685 ...2e60d
+I - 00001 - OPEN  139983093745408
+R - 00000 - [ 62 bytes] 10347 (0000, "foobar123")            [  100 ms] CREATE   0004         10€ "bad_secre"
+I - 00004 - 0004 c3b0069f801518b8e85316c4b6f5c8b8b69cd2b52ca446c2e15f72338384b3c6 ...48022
+E - 10347 - [  8 bytes] 0000   CREATE           OK
+I - 00000 - 0000 0d2673146c6a98fed1164644a64c2082da84d9846eef6dd4fea34e7e4cb6c389 ...3d961
+I - 00001 - OPEN  140319707428608
+R - 00000 - [ 62 bytes] 10527 (0000, "foobar123")            [  100 ms] CREATE   0004         10€ "bad_secre"
+I - 00004 - 0004 d1daa5e03dfaace9b8df64ea090cc8599234724bf459033bb0b149b52b1e377d ...5199e
+E - 10527 - [  8 bytes] 0000   CREATE           OK
+R - 00000 - [ 41 bytes] 10566 (0004, "bad_secre")            [   50 ms] TRANSFER 0002         10€
+E - 10566 - [ 12 bytes] 0004 TRANSFER ID_NOT_FOUND         10€
+R - 00000 - [ 62 bytes] 10581 (0000, "foobar123")            [  100 ms] CREATE   0004         10€ "bad_secre"
+E - 10581 - [  8 bytes] 0000   CREATE    ID_IN_USE
+R - 00000 - [ 41 bytes] 10594 (0004, "bad_secre")            [   50 ms] TRANSFER 0002         10€
+E - 10594 - [ 12 bytes] 0004 TRANSFER ID_NOT_FOUND         10€
+R - 00000 - [  0 bytes] 10619 (0004, "bad_secre")            [   50 ms] SHUTDOWN
+E - 10619 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+R - 00000 - [  0 bytes] 10624 (0004, "bad_secre")            [   50 ms] SHUTDOWN
+E - 10624 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+R - 00000 - [ 33 bytes] 10637 (0004, "bad_secre")            [   50 ms] SHUTDOWN
+E - 10637 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+R - 00000 - [ 33 bytes] 10652 (0000, "bad_secre")            [   50 ms] SHUTDOWN
+E - 10652 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+R - 00000 - [ 33 bytes] 10682 (0000, "foobar1")              [   50 ms] SHUTDOWN
+E - 10682 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+R - 00000 - [ 33 bytes] 10689 (0000, "foobar123")            [   50 ms] SHUTDOWN
+E - 10689 - [ 12 bytes] 0000 SHUTDOWN           OK 1
