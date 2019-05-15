@@ -108,8 +108,12 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
 //====================================================================================================================================
 bool accountExists(BankOffice_t * bankOffice, int id)
 {
-    if (!bankOffice->bankAccounts [id])
+    printf("PLS MAN id = %d\n", id);
+    if (!bankOffice->bankAccounts[id])
         return false;
+
+    printf("OK\n");
+
     return true;
 }
 //====================================================================================================================================
@@ -208,15 +212,20 @@ void destroyBankAccount(bank_account_t * bank_account) {
 bool validateLogin(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.header.account_id;
+
+    if (!accountExists(bankOffice, id))
+        return false;
+
     char hash[HASH_LEN + 1];
     char hashInput[MAX_PASSWORD_LEN + SALT_LEN + 1];
     strcpy(hashInput, bankOffice->request->value.header.password);
     strcat(hashInput,  bankOffice->bankAccounts[id]->salt);
     generateHash(hashInput, hash, "sha256sum");
 
-    if (accountExists(bankOffice, id) && !strcmp(hash, bankOffice->bankAccounts[id]->hash)){
+    if (!strcmp(hash, bankOffice->bankAccounts[id]->hash)){
         return true;
     }
+
     return false;
 }
 //====================================================================================================================================
@@ -305,21 +314,25 @@ int validateOPBalance(BankOffice_t * bankOffice) {
 int validateOPTransfer(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.ret_code = RC_OK;
 
+    printf("checkingAdminOp\n");
     if(checkAdminOperation(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_OP_NALLOW;
         return -1;
     }
- 
+    
+    printf("Account Existane\n");
     if (!accountExists(bankOffice, bankOffice->request->value.transfer.account_id)) {
         bankOffice->reply->value.header.ret_code = RC_ID_NOT_FOUND;
         return -2;
     }
  
+    printf("Check same ID\n");    
     if (bankOffice->request->value.transfer.account_id == bankOffice->request->value.header.account_id) {
         bankOffice->reply->value.header.ret_code = RC_SAME_ID;
         return -3;
     }
 
+    printf("All guchi transfer\n");
     return 0;
 }
 //====================================================================================================================================
@@ -338,13 +351,13 @@ void OPCreateAccount(BankOffice_t * bankOffice) {
     validateCreateAccount(bankOffice);
 
     req_create_account_t create =  bankOffice->request->value.create;
-    printf("balance = %d\n", create.balance);
     createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
 }
 //====================================================================================================================================
 void OPBalance(BankOffice_t * bankOffice) {
-    validateOPBalance(bankOffice);  
+    if (validateOPBalance(bankOffice) != 0)
+        return; 
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
     bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
@@ -374,14 +387,14 @@ void removeNewLine(char *line)
 }
 //====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
+    bankOffice->reply->type = bankOffice->request->type;
+    bankOffice->reply->length = 12; // falta a outra length
+
     if(!validateLogin(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
         return;
     }
 
-    bankOffice->reply->type = bankOffice->request->type;
-    bankOffice->reply->length = 12; // falta a outra length
- 
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
             OPCreateAccount(bankOffice);
