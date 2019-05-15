@@ -5,9 +5,9 @@ int initializeMutex(int nr);
 
 int destroyMutex(int nr);
 
-int bankOfficeLock(int id) ;
+int bankAccountLock(int id) ;
 
-int bankOfficeUnlock(int id);
+int bankAccountUnlock(int id);
 
 int intializeSems() ;
 

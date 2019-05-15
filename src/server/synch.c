@@ -10,13 +10,13 @@
 #include "synch.h"
 
 
-static pthread_mutex_t bankOffices_mutex[MAX_BANK_ACCOUNTS];
+static pthread_mutex_t bankAccounts_mutex[MAX_BANK_ACCOUNTS];
 static sem_t notFull, notEmpty;
 
 
 int initializeMutex(int nr) {
     for(int i=0; i< nr; i++ ) {
-        if (pthread_mutex_init(&bankOffices_mutex[i],NULL) != 0 ) {
+        if (pthread_mutex_init(&bankAccounts_mutex[i],NULL) != 0 ) {
             return 1;
         }
     }
@@ -25,30 +25,30 @@ int initializeMutex(int nr) {
 
 int destroyMutex(int nr) {
     for(int i=0; i< nr; i++ ) {
-        if (pthread_mutex_destroy(&bankOffices_mutex[i]) != 0 ) {
+        if (pthread_mutex_destroy(&bankAccounts_mutex[i]) != 0 ) {
             return 1;
         }
     }
     return 0;
 }
 
-int bankOfficeLock(int id) {
-   if( pthread_mutex_lock(&bankOffices_mutex[id]) != 0) {
+int bankAccountLock(int id) {
+   if( pthread_mutex_lock(&bankAccounts_mutex[id]) != 0) {
         return 1;
     }
 
     return 0;
 } 
 
-int bankOfficeUnlock(int id) {
-    if  (pthread_mutex_unlock(&bankOffices_mutex[id]) !=0) {
+int bankAccountUnlock(int id) {
+    if  (pthread_mutex_unlock(&bankAccounts_mutex[id]) !=0) {
         return 1;
     }
     return 0;
 }
 
-int intializeSems() {
-    if (sem_init(&notFull, 0,MAX_BANK_OFFICES) == -1) {
+int intializeSems(int semsNo) {
+    if (sem_init(&notFull, 0,semsNo) == -1) {
         return 1;
     }
     if (sem_init(&notEmpty, 0, 0) == -1) {
@@ -61,20 +61,27 @@ int waitNotFull() {
     if(sem_wait(&notFull) == -1) {
         return 1;
     }
+    printf("wait not full\n");
     return 0;
 }
 
 int waitNotEmpty() {
+    printf("wait not empty\n");
+
     if (sem_wait(&notEmpty) == -1) {
         return 1;
     }
+
+    printf("a seguir\n");
     return 0;
 }
 
 int postNotFull() {
+
     if (sem_post(&notFull) == -1) {
         return 1;
     }
+    printf("post not full\n");
     return 0;
 }
 
@@ -82,6 +89,7 @@ int postNotEmpty() {
     if (sem_post(&notEmpty) == -1) {
         return 1;
     }
+    printf("post not empty\n");
     return 0;
 }
 

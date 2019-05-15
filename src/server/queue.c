@@ -34,11 +34,16 @@ void readRequest(queue_t *queue, tlv_request_t** request_ptr) {
 }
 
 void writeRequest(queue_t *queue,tlv_request_t* request) {
+        printf("10001\n");
+
     pthread_mutex_lock(&queueLock);
+        printf("10002\n");
+
 
     queue->requests[queue->write_p] = request;
     queue->write_p = (queue->write_p + 1) % queue->size;
 
+    printf("1000\n");
     pthread_mutex_unlock(&queueLock);
 }
 

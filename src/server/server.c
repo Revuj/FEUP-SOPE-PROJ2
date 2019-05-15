@@ -98,14 +98,16 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
         return -1;
 
     return 0;
-    
 }
 //====================================================================================================================================
 bool accountExists(BankOffice_t * bankOffice, int id)
 {
+    bankAccountLock(id);
     if (!bankOffice->bankAccounts[id]) {
+        bankAccountUnlock(id);   
         return false;
     }
+    bankAccountUnlock(id);   
 
     return true;
 }
@@ -129,7 +131,6 @@ void copyString(char * destiny, char * source) {
     destiny[c] = '\0';
 }
 //====================================================================================================================================
-
 void generateHash(const char *name, char *fileHash, char *algorithm)
 {
 
@@ -198,10 +199,6 @@ void createBankAccount(Server_t *server, int id, int balance, char *password)
 
 }
 //====================================================================================================================================
-void destroyBankAccount(bank_account_t * bank_account) {
-    free(bank_account);
-}
-//====================================================================================================================================
 bool validateLogin(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.header.account_id;
@@ -231,17 +228,18 @@ int checkBalance(BankOffice_t *bankOffice)
 int addBalance(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.transfer.account_id;
-    printf("id = %d\n", id);
-    printf("initial balance = %d\n", bankOffice->bankAccounts[id]->balance);
     int amount = bankOffice->request->value.transfer.amount;
+
+        bankAccountLock(id);   
+
     int newBalance = bankOffice->bankAccounts[id]->balance + amount;
 
     if(newBalance > (signed int)MAX_BALANCE) {
         return -1;
     }
-
     bankOffice->bankAccounts[id]->balance = newBalance;
-    printf("new balance = %d\n", bankOffice->bankAccounts[id]->balance);    
+    bankAccountUnlock(id);   
+
     return 0;
 }
 //====================================================================================================================================
@@ -249,13 +247,16 @@ int subtractBalance(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.header.account_id;
     int amount = bankOffice->request->value.transfer.amount;
+
+    bankAccountLock(id);   
     int newBalance = bankOffice->bankAccounts[id]->balance - amount;
 
     if (newBalance < (signed int)MIN_BALANCE) {
         return -1;
     }
-
     bankOffice->bankAccounts[id]->balance = newBalance;
+    bankAccountUnlock(id);   
+    
     return 0;
 }
 //====================================================================================================================================
@@ -347,7 +348,11 @@ void OPCreateAccount(BankOffice_t * bankOffice) {
         return;
 
     req_create_account_t create =  bankOffice->request->value.create;
-    createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);
+    
+    bankAccountLock(bankOffice->request->value.header.account_id);
+    createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);    
+    bankAccountUnlock(bankOffice->request->value.header.account_id);   
+
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
 }
 //====================================================================================================================================
@@ -356,7 +361,11 @@ void OPBalance(BankOffice_t * bankOffice) {
         return; 
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+
+    bankAccountLock(bankOffice->request->value.header.account_id);
     bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
+    bankAccountUnlock(bankOffice->request->value.header.account_id);   
+    
     bankOffice->reply->length += sizeof(rep_balance_t);
 }
 //====================================================================================================================================
@@ -393,10 +402,14 @@ void validateRequest(BankOffice_t *bankOffice) {
     bankOffice->reply->type = bankOffice->request->type;
     bankOffice->reply->length = sizeof(rep_header_t);
 
+    bankAccountLock(bankOffice->request->value.header.account_id);
+
     if(!validateLogin(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
         return;
     }
+
+    bankAccountUnlock(bankOffice->request->value.header.account_id);
 
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
@@ -416,25 +429,27 @@ void validateRequest(BankOffice_t *bankOffice) {
     }
 }
 //====================================================================================================================================
+void resetBankOffice(BankOffice_t *bankOffice) {
+    memset(bankOffice->reply, 0, sizeof(tlv_reply_t));
+    memset(bankOffice->request, 0, sizeof(tlv_request_t));  
+}
+//====================================================================================================================================
 void *runBankOffice(void *arg)
 {
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
-    while (1)
-    {
-        // readRequest(requestsQueue, &(bankOffice->request));
-        // logRequest(serverWrapper(NULL)->sLogFd, bankOffice->orderNr, bankOffice->request);
-        // if (validateLogin(bankOffice))
-        //     validateRequest(bankOffice);
-        // if (bankOffice->reply->value.header.ret_code == RC_OK)
-        //     switch (bankOffice->request->type)
-        //     {
-        //     case OP_CREATE_ACCOUNT:
-        //         //crea
-        //         break;
-        //     default:
-        //         break;
-        //     }
-    }
+    Server_t *server = serverWrapper(NULL);
+ 
+    while (1) {
+        waitNotEmpty();
+        readRequest(requestsQueue, &bankOffice->request);
+        postNotFull();
+        logRequest(server->sLogFd, bankOffice ->orderNr, bankOffice ->request);
+
+        validateRequest(bankOffice);
+        sendReply(bankOffice ,USER_FIFO_PATH_PREFIX);
+        logReply(server->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
+        resetBankOffice(bankOffice);
+    }  
 }
 
 //====================================================================================================================================
@@ -460,6 +475,14 @@ void freeBankOffice(BankOffice_t * th) {
     free(th->reply);
     free(th->request);
     free(th);
+}
+//====================================================================================================================================
+void freeBankAccounts(bank_account_t **bankAccounts) {
+    for(int i=0;i<MAX_BANK_ACCOUNTS;i++) {
+        if(!bankAccounts[i])
+            free(bankAccounts[i]);
+    }
+    free(bankAccounts);
 }
 //====================================================================================================================================
 void closeBankOffices(Server_t *server)
@@ -508,7 +531,7 @@ int openFifo(char *fifoName)
 //====================================================================================================================================
 int openLogText(char *logFileName)
 {
-    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
+    int fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
     if (fd == -1)
     {
         perror("Server Log File");
@@ -581,13 +604,7 @@ int closeServer(Server_t *server)
         return 1;
     }
 
-    for(int i = 0; i < server->bankOfficesNo; i++) {
-        free(server->eletronicCounter[i]);
-    }
-
-    for(int i = 0; i< MAX_BANK_ACCOUNTS; i++) {
-         free(server->bankAccounts);
-    }
+    freeBankAccounts(server->bankAccounts);
 
     free(server);
 
@@ -607,13 +624,23 @@ void readRequestServer(Server_t *server) {
                 openFifo(SERVER_FIFO_PATH);
             }
             else {
+                waitNotFull();
                 writeRequest(requestsQueue,&request);
+                postNotEmpty();
             }
         }
     }
 }
-
-
+//====================================================================================================================================
+int initSynch(Server_t * server) {
+    if (initializeMutex(MAX_BANK_ACCOUNTS)== 1 ) {
+        return 1;
+    }
+    if (intializeSems(server->bankOfficesNo) == 1) {
+        return 1;
+    } 
+    return 0;
+}
 //====================================================================================================================================
 int main(int argc, char **argv)
 {
@@ -622,55 +649,29 @@ int main(int argc, char **argv)
     srand(time(NULL));
  
     Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, bankOffices, password);
-
  
     if (server == NULL)
     {
         perror("Server Initialization");
-        return 1;
+        exit(1);
     }
- 
+
     serverWrapper(server);
+    
+    requestsQueue = createQueue(server->bankOfficesNo);
+    
+    if (initSynch(server) == 1) {
+        perror("Synchronization Mechanisms Initialization");
+        exit(2);
+    }
+
     createBankOffices(server);
-    requestsQueue = createQueue(REQUESTS_QUEUE_LEN);
 
-    initializeMutex(bankOffices);
+    readRequestServer(server);
 
-    // /*test--a  mudar para serem threads-funcoes ja feitas*/
-    BankOffice_t *bk = (BankOffice_t *) malloc(sizeof(BankOffice_t));
-    bk->reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
-    bk->request=(tlv_request_t * )malloc(sizeof(tlv_request_t));
-    bk->bankAccounts = server->bankAccounts;
-    
-    int n = 0;
- 
-    do
-    {
-        n = read(server->fifoFd, bk->request, sizeof(tlv_request_t));
-        if (n > 0)
-        {
-            char hashInput[strlen(bk->request->value.header.password) + HASH_LEN + 1];
-            char hashOutput[HASH_LEN + 1];
-            strcpy(hashInput, bk->request->value.header.password);
-            strcat(hashInput, bk->bankAccounts[0]->salt);
-            generateHash(hashInput, hashOutput, "sha256sum"); 
-            logRequest(serverWrapper(NULL)->sLogFd, bk->orderNr, bk->request);
-            validateRequest(bk);
-            sendReply(bk,USER_FIFO_PATH_PREFIX);
-            logReply(serverWrapper(NULL)->sLogFd, bk->request->value.header.pid, bk->reply);
-            memset(bk->reply, 0, sizeof(tlv_reply_t));
-            memset(bk->request, 0, sizeof(tlv_request_t));            
-        }
-        sleep(1);
- 
-    } while (1);
- 
-    free(bk->reply);
-    free(bk->request);
-    free(bk);
-    
     closeBankOffices(server);
-    destroyMutex(bankOffices);
+    destroyMutex(MAX_BANK_ACCOUNTS);
+    destroySems();
     freeQueue(requestsQueue);
     closeServer(server);
 }

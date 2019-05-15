@@ -42,7 +42,7 @@ client_t *clientWrapper(client_t *client)
 
 int openLogText(char *logFileName)
 {
-    int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
+    int fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
     if (fd == -1) 
         return -1;
     
