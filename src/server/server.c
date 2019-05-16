@@ -159,7 +159,7 @@ void closeBankOffices(Server_t *server)
         printf("thread id = %ld\n", server->eletronicCounter[i]->tid);
         //pthread_cancel(server->eletronicCounter[i]->tid);
 
-        //pthread_join(server->eletronicCounter[i]->tid,NULL);
+        pthread_join(server->eletronicCounter[i]->tid,NULL);
         printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
         //logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("After log\n");
@@ -532,9 +532,8 @@ void validateRequest(BankOffice_t *bankOffice) {
     }
 }
 //====================================================================================================================================
-void resetBankOffice(BankOffice_t *bankOffice) {
-    memset(bankOffice->reply, 0, sizeof(tlv_reply_t));
-    memset(bankOffice->request, 0, sizeof(tlv_request_t));  
+void resetBankOffice(BankOffice_t *bankOffice) {  
+    printf("length = %d\n", bankOffice->request->length);
 }
 //====================================================================================================================================
 void *runBankOffice(void *arg)
@@ -560,7 +559,7 @@ void *runBankOffice(void *arg)
     }
 
     printf("bye thread\n");
-    return NULL; 
+    return NULL;
 }
 
 //====================================================================================================================================
