@@ -21,6 +21,8 @@ int freeQueue(queue_t *queue) {
         return 1;
     }
 
+    free(queue);
+
     return 0;
 }
 

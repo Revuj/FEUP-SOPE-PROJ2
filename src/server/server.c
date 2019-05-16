@@ -85,9 +85,12 @@ void closeServerFifo()
 }
 //====================================================================================================================================
 void freeBankOffice(BankOffice_t * th) {
+    printf("Freeing bank Office\n");
     free(th->reply);
     free(th->request);
     free(th);
+    printf("Bank Office Free\n");
+
 }
 //====================================================================================================================================
 void freeBankAccounts(bank_account_t **bankAccounts) {
@@ -146,16 +149,20 @@ int closeFifoReply(BankOffice_t * bankOffice) {
 //====================================================================================================================================
 void closeBankOffices(Server_t *server)
 {
-    for (int i = 0; i <= 10; i++) {
+    for (int i = 0; i < server->bankOfficesNo; i++) {
         printf("wake up threads\n");
         postNotEmpty(); //"wake up" threads
     }
 
     for(int i = 0; i < server->bankOfficesNo; i++) {
-        printf("calling thread_join\n");
-        pthread_join(server->eletronicCounter[i]->tid,NULL);
-        printf("Thread joined\n");
-        logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+        printf("calling thread_join %d\n", server->eletronicCounter[i]->orderNr);
+        printf("thread id = %ld\n", server->eletronicCounter[i]->tid);
+        //pthread_cancel(server->eletronicCounter[i]->tid);
+
+        //pthread_join(server->eletronicCounter[i]->tid,NULL);
+        printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
+        //logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+        printf("After log\n");
         //freeBankOffice(server->eletronicCounter[i]);
     }
     free(server->eletronicCounter);
@@ -482,14 +489,6 @@ void OPShutDown(BankOffice_t * bankOffice) {
     bankOffice->reply->value.shutdown.active_offices = server->bankOfficesNo;
     bankOffice->reply->length += sizeof(rep_shutdown_t);
     server->up = false;
-
-    printf("closing banks\n");
-    closeBankOffices(server);
-    printf("closed banks\n");
-    destroyMutex(MAX_BANK_ACCOUNTS);
-    destroySems();
-    freeQueue(requestsQueue);
-    closeServer(server);
 }
 //====================================================================================================================================
 void removeNewLine(char *line)
@@ -545,8 +544,8 @@ void *runBankOffice(void *arg)
  
     while (1) {
         waitNotEmpty();
-        if (!server->up && requestsQueue->itemsNo != 0) {
-            postNotFull();
+        printf("checking if\n");
+        if (!server->up && requestsQueue->itemsNo == 0) {
             break;
         }
         readRequest(requestsQueue, &bankOffice->request);
@@ -558,7 +557,9 @@ void *runBankOffice(void *arg)
         sendReply(bankOffice ,USER_FIFO_PATH_PREFIX);
         logReply(server->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
         resetBankOffice(bankOffice);
-    } 
+    }
+
+    printf("bye thread\n");
     return NULL; 
 }
 
@@ -578,6 +579,7 @@ void createBankOffices(Server_t *server)
         server->eletronicCounter[i]->bankAccounts=server->bankAccounts;
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+        printf("create id = %ld\n", server->eletronicCounter[i]->tid);
     }
 }
 //====================================================================================================================================
@@ -666,7 +668,7 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
 //====================================================================================================================================
 void readRequestServer(Server_t *server) {
     int n;
-    while (1)
+    while (server->up)
     {
         tlv_request_t request;
         if ((n = read(server->fifoFd, &request, sizeof(tlv_request_t))) != -1) {
@@ -729,4 +731,12 @@ int main(int argc, char **argv)
     createBankOffices(server);
 
     readRequestServer(server);
+
+    printf("closing banks\n");
+    closeBankOffices(server);
+    printf("closed banks\n");
+    destroyMutex(MAX_BANK_ACCOUNTS);
+    destroySems();
+    freeQueue(requestsQueue);
+    closeServer(server);
 }
