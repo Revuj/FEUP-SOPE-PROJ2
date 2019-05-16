@@ -84,15 +84,6 @@ void closeServerFifo()
     }
 }
 //====================================================================================================================================
-void freeBankOffice(BankOffice_t * th) {
-    printf("Freeing bank Office\n");
-    free(th->reply);
-    free(th->request);
-    free(th);
-    printf("Bank Office Free\n");
-
-}
-//====================================================================================================================================
 void freeBankAccounts(bank_account_t **bankAccounts) {
     for(int i=0;i<MAX_BANK_ACCOUNTS;i++) {
         if(!bankAccounts[i])
@@ -157,13 +148,11 @@ void closeBankOffices(Server_t *server)
     for(int i = 0; i < server->bankOfficesNo; i++) {
         printf("calling thread_join %d\n", server->eletronicCounter[i]->orderNr);
         printf("thread id = %ld\n", server->eletronicCounter[i]->tid);
-        //pthread_cancel(server->eletronicCounter[i]->tid);
-
         pthread_join(server->eletronicCounter[i]->tid,NULL);
         printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
-        //logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
+        logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("After log\n");
-        //freeBankOffice(server->eletronicCounter[i]);
+        free(server->eletronicCounter[i]);
     }
     free(server->eletronicCounter);
 }
@@ -532,8 +521,7 @@ void validateRequest(BankOffice_t *bankOffice) {
     }
 }
 //====================================================================================================================================
-void resetBankOffice(BankOffice_t *bankOffice) {  
-    printf("length = %d\n", bankOffice->request->length);
+void resetBankOffice(BankOffice_t *bankOffice) {
 }
 //====================================================================================================================================
 void *runBankOffice(void *arg)
@@ -649,7 +637,7 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     if ((logFd=openLogText(logFileName)) == -1) {
         return NULL;
     }
-    /*bank offices correspondentes as threads*/
+
     server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
  
     server->sLogFd = logFd;
