@@ -9,24 +9,10 @@
 #include <errno.h>
 #include <signal.h>
 
-#include "options.h"
-#include "../sope.h"
-#include "../types.h"
+#include "user.h"
 #include "../constants.h"
 
-#define LENGTH_NAME 20
-#define FIFO_LENGTH 20
-
-typedef struct
-{
-    tlv_reply_t *reply;
-    tlv_request_t *request;
-    int fifoRequest;
-    int fifoReply;
-    char *nameFifoAnswer;
-    int uLogFd;
-} client_t;
-
+//====================================================================================================================================
 client_t *clientWrapper(client_t *client)
 {
     static client_t *compClient;
@@ -39,7 +25,7 @@ client_t *clientWrapper(client_t *client)
     }
     return compClient;
 }
-
+//====================================================================================================================================
 int openLogText(char *logFileName)
 {
     int fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU);
@@ -48,14 +34,14 @@ int openLogText(char *logFileName)
     
     return fd;
 }
-
+//====================================================================================================================================
 void fillTimeOutReply(client_t *client) {
     client->reply->value.header.account_id = client->request->value.header.account_id;
     client->reply->value.header.ret_code = RC_SRV_TIMEOUT;
     client->reply->type = client->request->type;
     client->reply->length = sizeof(rep_header_t);
 }
-
+//====================================================================================================================================
 int destroyClient(client_t *client)
 {
 
@@ -73,7 +59,7 @@ int destroyClient(client_t *client)
     free(client->nameFifoAnswer);
     return 0;
 }
-
+//====================================================================================================================================
 void alarmHandler(int signo)
 {
     client_t * client = clientWrapper(NULL);
@@ -82,12 +68,12 @@ void alarmHandler(int signo)
     destroyClient(client);
     exit(1);
 }
-
+//====================================================================================================================================
 void cancelAlarm()
 {
     alarm(0);
 }
-
+//====================================================================================================================================
 int installAlarm()
 {
 
@@ -105,7 +91,7 @@ int installAlarm()
 
     return 0;
 }
-
+//====================================================================================================================================
 client_t *createClient()
 {
     client_t *client = (client_t *)malloc(sizeof(client_t));
@@ -119,14 +105,14 @@ client_t *createClient()
         return NULL;
     return client;
 }
-
+//====================================================================================================================================
 void fillServerDownReply(client_t * client) {
     client->reply->value.header.account_id = client->request->value.header.account_id;
     client->reply->value.header.ret_code =  RC_SRV_DOWN;
     client->reply->type = client->request->type;
     client->reply->length = sizeof(rep_header_t);
 }
-
+//====================================================================================================================================
 int openRequestFifo(client_t *client)
 {
     client->fifoRequest = open(SERVER_FIFO_PATH, O_WRONLY);
@@ -138,7 +124,7 @@ int openRequestFifo(client_t *client)
     }
     return 0;
 }
-
+//====================================================================================================================================
 int createReplyFifo(client_t *client, char *fifoPrefix)
 {
 
@@ -161,7 +147,7 @@ int createReplyFifo(client_t *client, char *fifoPrefix)
 
     return 0;
 }
-
+//====================================================================================================================================
 int openReplyFifo(client_t *client)
 {
     int fd = open(client->nameFifoAnswer, O_RDONLY);
@@ -173,7 +159,7 @@ int openReplyFifo(client_t *client)
     client->fifoReply = fd;
     return 0;
 }
-
+//====================================================================================================================================
 int sendRequest(client_t *client)
 {
     printf("Sending Request\n");
@@ -187,7 +173,7 @@ int sendRequest(client_t *client)
 
     return 0;
 }
-
+//====================================================================================================================================
 int readReply(client_t *client)
 {
     int nrRead;
@@ -204,7 +190,7 @@ int readReply(client_t *client)
     cancelAlarm();
     return 0;
 }
-
+//====================================================================================================================================
 int checkArgumentsSpacesNo(char *arguments) {
     int i,count = 0;
     for (i = 0;arguments[i] != '\0';i++)
@@ -214,7 +200,7 @@ int checkArgumentsSpacesNo(char *arguments) {
     }
     return count;
 }
-
+//====================================================================================================================================
 int createAccountRequest(client_t *client, option_t *options)
 {
     client->request->type = options->type;
@@ -254,7 +240,7 @@ int createAccountRequest(client_t *client, option_t *options)
 
     return 0;
 }
-
+//====================================================================================================================================
 int createBalanceRequest(client_t *client, option_t *options)
 {
     client->request->type = options->type;
@@ -270,7 +256,7 @@ int createBalanceRequest(client_t *client, option_t *options)
 
     return 0;
 }
-
+//====================================================================================================================================
 int createTransferRequest(client_t *client, option_t *options)
 {
     client->request->type = options->type;
@@ -302,7 +288,7 @@ int createTransferRequest(client_t *client, option_t *options)
 
     return 0;
 }
-
+//====================================================================================================================================
 int createShutDownRequest(client_t *client, option_t *options)
 {
     client->request->type = options->type;
@@ -318,7 +304,7 @@ int createShutDownRequest(client_t *client, option_t *options)
 
     return 0;
 }
-
+//====================================================================================================================================
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
     client_t *client = createClient();
