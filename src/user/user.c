@@ -205,56 +205,116 @@ int readReply(client_t *client)
     return 0;
 }
 
+int checkArgumentsSpacesNo(char *arguments) {
+    int i,count = 0;
+    for (i = 0;arguments[i] != '\0';i++)
+    {
+        if (arguments[i] == ' ')
+            count++;    
+    }
+    return count;
+}
 
-int createAccountRequest(client_t *client, char * arguments)
+int createAccountRequest(client_t *client, option_t *options)
 {
+    client->request->type = options->type;
+    client->request->length = sizeof(req_header_t) + sizeof(req_create_account_t);
+    client->request->value.header.account_id = options->account_id;
+    client->request->value.header.op_delay_ms = options->op_delay_ms;
+    strcpy(client->request->value.header.password,options->password);
+
+    if(checkArgumentsSpacesNo(options->operation_arguments) != 2) {
+        fprintf(stderr,"Invalid number of arguments for this operation\n");
+        return -1;
+    }
+
     char *token;
 
-    token = strtok(arguments, " ");
+    token = strtok(options->operation_arguments, " ");
     client->request->value.create.account_id = atoi(token);
+    if(client->request->value.create.account_id < 1 || client->request->value.create.account_id >= MAX_BANK_ACCOUNTS) {
+        fprintf(stderr,"Invalid account id argument\n");
+        return -1;
+    }
+
     token = strtok(NULL, " ");
     client->request->value.create.balance = atoi(token);
+    if(client->request->value.create.balance < MIN_BALANCE || client->request->value.create.balance > MAX_BALANCE) {
+        fprintf(stderr,"Invalid balance argument\n");
+        return -1;
+    }
+
     token = strtok(NULL, " ");
     strcpy(client->request->value.create.password, token);
-    client->request->length = sizeof(req_header_t) + sizeof(req_create_account_t);
-
-    return 0;
-}
-
-int createBalanceRequest(client_t *client, char * arguments)
-{
-
-    if (strlen(arguments) != 0) {
-        return 1;
-
+    size_t size = strlen(client->request->value.create.password);
+    if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
+        fprintf(stderr,"Invalid password argument\n");
+        return -1;
     }
-    client->request->length = sizeof(req_header_t);
 
     return 0;
 }
 
-int createTransferRequest(client_t *client, char * arguments)
+int createBalanceRequest(client_t *client, option_t *options)
 {
+    client->request->type = options->type;
+    client->request->length = sizeof(req_header_t);
+    client->request->value.header.account_id = options->account_id;
+    client->request->value.header.op_delay_ms = options->op_delay_ms;
+    strcpy(client->request->value.header.password,options->password);
+
+    if(checkArgumentsSpacesNo(options->operation_arguments) != 0) {
+        fprintf(stderr,"Invalid number of arguments for this operation\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int createTransferRequest(client_t *client, option_t *options)
+{
+    client->request->type = options->type;
+    client->request->length = sizeof(req_header_t) + sizeof(req_transfer_t);
+    client->request->value.header.account_id = options->account_id;
+    client->request->value.header.op_delay_ms = options->op_delay_ms;
+    strcpy(client->request->value.header.password,options->password);
+
+    if(checkArgumentsSpacesNo(options->operation_arguments) != 1) {
+        fprintf(stderr,"Invalid number of arguments for this operation\n");
+        return -1;
+    }
+
     char *token;
 
-    token = strtok(arguments, " ");
+    token = strtok(options->operation_arguments, " ");
     client->request->value.transfer.account_id = atoi(token);
+    if(client->request->value.transfer.account_id < 1 || client->request->value.transfer.account_id >= MAX_BANK_ACCOUNTS) {
+        fprintf(stderr,"Invalid account id argument\n");
+        return -1;
+    }
+
     token = strtok(NULL, " ");
     client->request->value.transfer.amount = atoi(token);
-
-    client->request->length = sizeof(req_header_t) + sizeof(req_transfer_t);
+    if(client->request->value.transfer.amount < MIN_BALANCE || client->request->value.transfer.amount > MAX_BALANCE) {
+        fprintf(stderr,"Invalid amount argument\n");
+        return -1;
+    }
 
     return 0;
 }
 
-int createShutDownRequest(client_t *client, char * arguments)
+int createShutDownRequest(client_t *client, option_t *options)
 {
-     if (strlen(arguments) != 0) {
-        return 1; 
+    client->request->type = options->type;
+    client->request->length = sizeof(req_header_t);
+    client->request->value.header.account_id = options->account_id;
+    client->request->value.header.op_delay_ms = options->op_delay_ms;
+    strcpy(client->request->value.header.password,options->password);
 
+    if(checkArgumentsSpacesNo(options->operation_arguments) != 0) {
+        fprintf(stderr,"Invalid number of arguments for this operation\n");
+        return -1;
     }
-
-    client->request->length = sizeof(req_header_t)  ;
 
     return 0;
 }
@@ -267,34 +327,43 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         perror("Could not open user logfile\n");
         exit(1);
     }
+
+    option_t *options = init_options();
     
-    parse_args(argc,argv,client->request);
+    parse_args(argc,argv,options);
 
     if (installAlarm() != 0)
         exit(EXIT_FAILURE);
     
     //verificar erros nas funções de input, vAtor
-    switch (client->request->type)
+    switch (options->type)
     {
     case OP_CREATE_ACCOUNT:
-        createAccountRequest(client, argv[5]);
+        if(createAccountRequest(client, options) < 0)
+            exit(EXIT_FAILURE);
         break;
 
     case OP_BALANCE:
-        createBalanceRequest(client, argv[5]);
+        if(createBalanceRequest(client, options) < 0)
+            exit(EXIT_FAILURE);
         break;
 
     case OP_TRANSFER:
-        createTransferRequest(client, argv[5]);
+        if(createTransferRequest(client, options) < 0)
+            exit(EXIT_FAILURE);
         break;
 
     case OP_SHUTDOWN:
-        createShutDownRequest(client, argv[5]);
+        if(createShutDownRequest(client, options) < 0)
+            exit(EXIT_FAILURE);
         break;
     
-    default:    
+    default:  
+        fprintf(stderr,"Invalid operation number\n");  
         break;
     }
+
+    return 0;
 
     if(openRequestFifo(client) != 0) 
         exit(EXIT_FAILURE);
@@ -313,6 +382,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     readReply(client);
 
     //printf("%d %d", client->reply->value.header.ret_code, client->reply->value.balance.balance);
+    free_options(options);
 
     destroyClient(client);
     //close(fd);

@@ -5,15 +5,16 @@
 #define HELP_LFLAG "help"
 extern int o_show_help;
 
-#define USAGE_FLAG 
-#define USAGE_LFLAG "usage"
-extern int o_show_usage;
+typedef struct {
+    int bankOfficesNo;
+    char *password;
+} option_t;
 
-extern int bankOffices;
-extern char* password;
+option_t* init_options();
 
+void free_options(option_t *options);
 
 // Parse command line arguments
-int parse_args(int argc, char** argv);
+int parse_args(int argc, char** argv,option_t *options);
 
 #endif // OPTIONS_H___

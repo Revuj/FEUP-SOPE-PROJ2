@@ -653,11 +653,12 @@ int initSynch(Server_t * server) {
 //====================================================================================================================================
 int main(int argc, char **argv)
 {
-    parse_args(argc,argv);
+    option_t *options=init_options();
+    parse_args(argc,argv,options);
  
     srand(time(NULL));
  
-    Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, bankOffices, password);
+    Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, options->bankOfficesNo, options->password);
  
     if (server == NULL)
     {
@@ -677,4 +678,11 @@ int main(int argc, char **argv)
     createBankOffices(server);
 
     readRequestServer(server);
+
+    closeBankOffices(server);
+    destroyMutex(MAX_BANK_ACCOUNTS);
+    destroySems();
+    free_options(options);
+    freeQueue(requestsQueue);
+    closeServer(server);
 }

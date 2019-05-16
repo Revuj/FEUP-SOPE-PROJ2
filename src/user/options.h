@@ -8,11 +8,18 @@
 #define HELP_LFLAG "help"
 extern int o_show_help;
 
-#define USAGE_FLAG 
-#define USAGE_LFLAG "usage"
-extern int o_show_usage;
+typedef struct {
+    uint32_t account_id;
+    char *password;
+    uint32_t op_delay_ms;
+    enum op_type type;
+    char *operation_arguments;
+} option_t;
 
-// Parse command line arguments
-int parse_args(int argc, char** argv,tlv_request_t *request);
+option_t* init_options();
+
+void free_options(option_t *options);
+
+int parse_args(int argc, char** argv,option_t *option);
 
 #endif // OPTIONS_H___

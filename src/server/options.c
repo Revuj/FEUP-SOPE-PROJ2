@@ -15,17 +15,21 @@
 
 // <!--- OPTIONS (Resolve externals of options.h)
 int o_show_help = false; // h, help
-int o_show_usage = false; // usage
-
-int bankOffices;
-char* password = NULL;
 // ----> END OF OPTIONS
 
+option_t* init_options() {
+    option_t* options = (option_t *)malloc(sizeof(option_t));
+    return options;
+}
+
+void free_options(option_t *options) {
+    free((char*) options->password);
+    free(options);
+}
 
 static const struct option long_options[] = {
     // general options
     {HELP_LFLAG,              no_argument, &o_show_help,       true},
-    {USAGE_LFLAG,             no_argument, &o_show_usage,      true},
     // end of options
     {0, 0, 0, 0}
 };
@@ -38,18 +42,7 @@ static const char* short_options = "+h";
 static const wchar_t* usage = L"Usage: user [option] ID password delay operation_code arguments_list\n"
     "arguments_list is a space-separated string\n"
     "General:\n"
-    "  -h, --help,           \n"
-    "      --usage           Show this message and exit\n";
-
-static void clear_options() {
-    free((char*)password);
-}
-
-static void print_all() {
-    setlocale(LC_ALL, "");
-    wprintf(usage);
-    exit(EXIT_SUCCESS);
-}
+    "  -h, --help,           \n";
 
 static void print_usage() {
     setlocale(LC_ALL, "");
@@ -73,7 +66,7 @@ static int parse_int(const char* str, int* store) {
     char* endp;
     long result = strtol(str, &endp, 10);
 
-    if (endp == str || errno == ERANGE || result >= INT_MAX || result <= INT_MIN) {
+    if (endp == str || errno == ERANGE || result >= INT_MAX || result < 0) {
         return -1;
     } else {
         *store = (int)result;
@@ -81,13 +74,41 @@ static int parse_int(const char* str, int* store) {
     }
 }
 
+static int checkPasswordSpaces(char *password) {
+    int i,count = 0;
+    for (i = 0;password[i] != '\0';i++)
+    {
+        if (password[i] == ' ')
+            count++;    
+    }
+    return count;
+}
+
+static void validateArgs(option_t *options) {
+    if(options->bankOfficesNo > MAX_BANK_OFFICES){
+        fprintf(stderr,"Invalid number of bank offices\n");
+        exit(EXIT_SUCCESS);
+    }
+    
+    if(checkPasswordSpaces(options->password) != 0) {
+        fprintf(stderr,"Password can not contain spaces\n");
+        exit(EXIT_SUCCESS);
+    }
+
+    size_t size = strlen(options->password);
+    if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
+        fprintf(stderr,"Invalid password size\n");
+        exit(EXIT_SUCCESS);
+    }
+}
+
 /**
  * Standard unix main's argument parsing function.
  */
-int parse_args(int argc, char** argv) {
+int parse_args(int argc, char** argv,option_t *options) {
     // If there are no args, print usage message and exit
     if (argc == 1) {
-        print_all();
+        print_usage();
     }
 
     // Standard getopt_long Options Loop
@@ -119,17 +140,15 @@ int parse_args(int argc, char** argv) {
     int num_positional = argc - optind;
 
     if (num_positional == 2) {
-        if (parse_int(argv[optind++], &bankOffices) != 0 || bankOffices > MAX_BANK_OFFICES) {
+        if (parse_int(argv[optind++], &(options->bankOfficesNo)) != 0) {
             print_badpositional(1);
         }
-        password = strdup(argv[optind++]);
-        if (strlen(password) < MIN_PASSWORD_LEN || strlen(password) > MAX_PASSWORD_LEN) {
-            print_badpositional(2);
-        }
+        options->password = strdup(argv[optind++]);
     } else {
         print_numpositional(num_positional);
     }
 
-    atexit(clear_options);
+    validateArgs(options);
+
     return 0;
 }
