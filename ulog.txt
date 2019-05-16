@@ -1,0 +1,32 @@
+E - 11080 - [ 62 bytes] 11080 (0000, "foobar123")            [  500 ms] CREATE   0001        100€ "secret_pass"
+R - 11080 - [  8 bytes] 0000   CREATE           OK
+E - 11083 - [ 62 bytes] 11083 (0000, "foobar123")            [ 5000 ms] CREATE   0002          5€ "bad_password"
+R - 11083 - [  8 bytes] 0000   CREATE           OK
+E - 11086 - [ 62 bytes] 11086 (0001, "foobar123")            [ 1000 ms] CREATE   0003        500€ "good_password"
+R - 11086 - [  8 bytes] 0000   CREATE   LOGIN_FAIL
+E - 11088 - [ 33 bytes] 11088 (0001, "secret_pass")          [ 1000 ms] BALANCE 
+R - 11088 - [ 12 bytes] 0001  BALANCE           OK        100€
+E - 11090 - [ 33 bytes] 11090 (0002, "bad_password")         [ 4000 ms] BALANCE 
+R - 11090 - [ 12 bytes] 0002  BALANCE           OK          5€
+E - 11092 - [ 33 bytes] 11092 (0001, "secret_pass")          [ 1000 ms] SHUTDOWN
+R - 11092 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 11094 - [ 33 bytes] 11094 (0000, "fkaewofkwae")          [ 1000 ms] SHUTDOWN
+R - 11094 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+E - 11096 - [ 33 bytes] 11096 (0000, "foobar123")            [ 2000 ms] SHUTDOWN
+R - 11096 - [  8 bytes] 0000 SHUTDOWN  SRV_TIMEOUT 0
+E - 11286 - [ 62 bytes] 11286 (0000, "foobar123")            [  500 ms] CREATE   0001        100€ "secret_pass"
+R - 11286 - [  8 bytes] 0000   CREATE           OK
+E - 11289 - [ 62 bytes] 11289 (0000, "foobar123")            [ 5000 ms] CREATE   0002          5€ "bad_password"
+R - 11289 - [  8 bytes] 0000   CREATE           OK
+E - 11292 - [ 62 bytes] 11292 (0001, "foobar123")            [ 1000 ms] CREATE   0003        500€ "good_password"
+R - 11292 - [  8 bytes] 0000   CREATE   LOGIN_FAIL
+E - 11294 - [ 33 bytes] 11294 (0001, "secret_pass")          [ 1000 ms] BALANCE 
+R - 11294 - [ 12 bytes] 0001  BALANCE           OK        100€
+E - 11296 - [ 33 bytes] 11296 (0002, "bad_password")         [ 4000 ms] BALANCE 
+R - 11296 - [ 12 bytes] 0002  BALANCE           OK          5€
+E - 11298 - [ 33 bytes] 11298 (0001, "secret_pass")          [ 1000 ms] SHUTDOWN
+R - 11298 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 11300 - [ 33 bytes] 11300 (0000, "fkaewofkwae")          [ 1000 ms] SHUTDOWN
+R - 11300 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+E - 11302 - [ 33 bytes] 11302 (0000, "foobar123")            [ 2000 ms] SHUTDOWN
+R - 11302 - [  8 bytes] 0000 SHUTDOWN  SRV_TIMEOUT 0
