@@ -47,15 +47,19 @@ int bankAccountUnlock(int id) {
     return 0;
 }
 
-int intializeSems(int semsNo) {
+int initializeSemNotFull(int semsNo) {
     if (sem_init(&notFull, 0,semsNo) == -1) {
         return 1;
     }
-    if (sem_init(&notEmpty, 0, 0) == -1) {
+    return 0;
+}
+
+int initializeSemNotEmpty(int semsNo) {
+    if (sem_init(&notEmpty, 0, semsNo) == -1) {
         return 1;
     }
     return 0;
- }
+}
 
 int waitNotFull() {
     if(sem_wait(&notFull) == -1) {
@@ -91,6 +95,18 @@ int postNotEmpty() {
     }
     printf("post not empty\n");
     return 0;
+}
+
+int getvalueNotFull() {
+    int value;
+    sem_getvalue(&notFull,&value);
+    return value;
+}
+
+int getvalueNotEmpty() {
+    int value;
+    sem_getvalue(&notEmpty,&value);
+    return value;
 }
 
 int destroySems() {

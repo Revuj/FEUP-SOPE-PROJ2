@@ -9,7 +9,9 @@ int bankAccountLock(int id) ;
 
 int bankAccountUnlock(int id);
 
-int intializeSems() ;
+int initializeSemNotFull(int semsNo);
+
+int initializeSemNotEmpty(int semsNo);
 
 int waitNotFull();
 
@@ -18,6 +20,10 @@ int waitNotEmpty();
 int postNotFull();
 
 int postNotEmpty();
+
+int getvalueNotFull();
+
+int getvalueNotEmpty();
 
 int destroySems();
 
