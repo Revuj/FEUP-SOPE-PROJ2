@@ -1,0 +1,16 @@
+E - 05770 - [ 62 bytes] 05770 (0000, "foobar123")            [  500 ms] CREATE   0001        100€ "secret_pass"
+R - 05770 - [  8 bytes] 0000   CREATE           OK
+E - 05773 - [ 62 bytes] 05773 (0000, "foobar123")            [ 5000 ms] CREATE   0002          5€ "bad_password"
+R - 05773 - [  8 bytes] 0000   CREATE           OK
+E - 05776 - [ 62 bytes] 05776 (0001, "foobar123")            [ 1000 ms] CREATE   0003        500€ "good_password"
+R - 05776 - [  8 bytes] 0000   CREATE   LOGIN_FAIL
+E - 05778 - [ 33 bytes] 05778 (0001, "secret_pass")          [ 1000 ms] BALANCE 
+R - 05778 - [ 12 bytes] 0001  BALANCE           OK        100€
+E - 05780 - [ 33 bytes] 05780 (0002, "bad_password")         [ 4000 ms] BALANCE 
+R - 05780 - [ 12 bytes] 0002  BALANCE           OK          5€
+E - 06178 - [ 33 bytes] 06178 (0001, "secret_pass")          [ 1000 ms] SHUTDOWN
+R - 06178 - [  8 bytes] 0001 SHUTDOWN    OP_NALLOW 0
+E - 06180 - [ 33 bytes] 06180 (0000, "fkaewofkwae")          [ 1000 ms] SHUTDOWN
+R - 06180 - [  8 bytes] 0002 SHUTDOWN   LOGIN_FAIL 0
+E - 06182 - [ 33 bytes] 06182 (0000, "foobar123")            [ 2000 ms] SHUTDOWN
+R - 06182 - [ 12 bytes] 0000 SHUTDOWN           OK 2

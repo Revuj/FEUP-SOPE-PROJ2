@@ -131,7 +131,7 @@ int sendReply(BankOffice_t * bankOffice,char *prefixName) {
     if (openFifoReply(bankOffice,prefixName) == -1) 
         return -1;
     
-    if (write(bankOffice->fdReply,bankOffice->reply,sizeof(tlv_reply_t))== -1)
+    if (write(bankOffice->fdReply,bankOffice->reply,sizeof(op_type_t)+sizeof(uint32_t)+bankOffice->reply->length)== -1)
         return -1;
 
     if (closeFifoReply(bankOffice) == -1)
@@ -628,19 +628,31 @@ void readRequestServer(Server_t *server) {
     while (server->up)
     {
         tlv_request_t request;
-        if ((n = read(server->fifoFd, &request, sizeof(tlv_request_t))) != -1) {
+        if ((n = read(server->fifoFd, &request.type, sizeof(op_type_t))) != -1) {
             if (n == 0) {
                 close(server->fifoFd);
                 openFifo(SERVER_FIFO_PATH);
             }
-            else {
-                logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotFull());
-                waitNotFull();
-                logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_PRODUCER,request.value.header.pid);
-                writeRequest(requestsQueue,&request);
-                logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_PRODUCER,request.value.header.pid);
-                postNotEmpty();
-                logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_POST,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotEmpty());
+            else if ((n = read(server->fifoFd, &request.length, sizeof(uint32_t))) != -1) {
+                if (n == 0) {
+                    close(server->fifoFd);
+                    openFifo(SERVER_FIFO_PATH);
+                }
+                else if((n = read(server->fifoFd, &request.value, request.length)) != -1) {
+                    if (n == 0) {
+                        close(server->fifoFd);
+                        openFifo(SERVER_FIFO_PATH);
+                    }
+                    else {
+                        logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotFull());
+                        waitNotFull();
+                        logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_PRODUCER,request.value.header.pid);
+                        writeRequest(requestsQueue,&request);
+                        logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_PRODUCER,request.value.header.pid);
+                        postNotEmpty();
+                        logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_POST,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotEmpty());
+                    }
+                }
             }
         }
     }
@@ -655,7 +667,7 @@ int initSynch(Server_t * server) {
         return 1;
     } 
     logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_INIT,SYNC_ROLE_PRODUCER,0,0);
-    if (initializeSemNotFull(server->bankOfficesNo) == 1) {
+    if (initializeSemNotEmpty(0) == 1) {
         return 1;
     } 
     return 0;
@@ -695,5 +707,6 @@ int main(int argc, char **argv)
     destroyMutex(MAX_BANK_ACCOUNTS);
     destroySems();
     freeQueue(requestsQueue);
+    free_options(options);
     closeServer(server);
 }

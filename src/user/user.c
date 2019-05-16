@@ -163,7 +163,7 @@ int openReplyFifo(client_t *client)
 int sendRequest(client_t *client)
 {
     printf("Sending Request\n");
-    if (write(client->fifoRequest, client->request, sizeof(tlv_request_t)) < 0)
+    if (write(client->fifoRequest, client->request, sizeof(op_type_t)+sizeof(uint32_t)+client->request->length) < 0)
     {
         perror("Send request");
         return -1;
@@ -178,11 +178,17 @@ int readReply(client_t *client)
 {
     int nrRead;
 
-    while ((nrRead = read(client->fifoReply, client->reply, sizeof(tlv_request_t))) != -1)
-    {
-        if (nrRead != 0)
-        {
-            break;
+    while(1){
+        if((nrRead = read(client->fifoReply, &client->reply->type, sizeof(op_type_t))) != -1) {
+            if((nrRead = read(client->fifoReply, &client->reply->length, sizeof(uint32_t))) != -1) {
+                if((nrRead = read(client->fifoReply, &client->reply->value, client->reply->length)) != -1)
+                {
+                    if (nrRead != 0)
+                    {
+                        break;
+                    }
+                }
+            }
         }
     }
     
