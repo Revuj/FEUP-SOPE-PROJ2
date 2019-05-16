@@ -123,9 +123,11 @@ int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
     char replyFifo[64];
     sprintf(replyFifo, "%s%d",prefixName, bankOffice->request->value.header.pid);
 
+    printf("fifo reply = %s\n", replyFifo);
     int fd = open(replyFifo,O_WRONLY);
 
     if (fd == -1 ) {
+        printf("cant open fifo\n");
         bankOffice->reply->value.header.ret_code = RC_USR_DOWN;
         return -1;
     } 
@@ -144,6 +146,11 @@ int closeFifoReply(BankOffice_t * bankOffice) {
 //====================================================================================================================================
 void closeBankOffices(Server_t *server)
 {
+    for (int i = 0; i < server->bankOfficesNo; i++) {
+        printf("wake up threads\n");
+        postNotEmpty(); //"wake up" threads
+    }
+
     for(int i = 0; i < server->bankOfficesNo; i++) {
         pthread_join(server->eletronicCounter[i]->tid,NULL);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
@@ -521,8 +528,12 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
     Server_t *server = serverWrapper(NULL);
  
-    while (server->up || requestsQueue->itemsNo != 0) {
+    while (1) {
         waitNotEmpty();
+        if (!server->up && requestsQueue->itemsNo != 0) {
+            postNotFull();
+            break;
+        }
         readRequest(requestsQueue, &bankOffice->request);
         postNotFull();
         logRequest(server->sLogFd, bankOffice ->orderNr, bankOffice ->request);
@@ -530,7 +541,8 @@ void *runBankOffice(void *arg)
         sendReply(bankOffice ,USER_FIFO_PATH_PREFIX);
         logReply(server->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
         resetBankOffice(bankOffice);
-    }  
+    } 
+    return NULL; 
 }
 
 //====================================================================================================================================
@@ -687,11 +699,4 @@ int main(int argc, char **argv)
     createBankOffices(server);
 
     readRequestServer(server);
-
-    closeBankOffices(server);
-    destroyMutex(MAX_BANK_ACCOUNTS);
-    destroySems();
-    free_options(options);
-    freeQueue(requestsQueue);
-    closeServer(server);
 }
