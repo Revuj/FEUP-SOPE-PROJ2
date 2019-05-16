@@ -153,7 +153,8 @@ void closeBankOffices(Server_t *server)
     }
 
     for(int i = 0; i < server->bankOfficesNo; i++) {
-        pthread_join(server->eletronicCounter[i + 1]->tid,NULL);
+        printf("calling thread_join\n");
+        pthread_join(server->eletronicCounter[i]->tid,NULL);
         printf("Thread joined\n");
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         //freeBankOffice(server->eletronicCounter[i]);
