@@ -146,15 +146,16 @@ int closeFifoReply(BankOffice_t * bankOffice) {
 //====================================================================================================================================
 void closeBankOffices(Server_t *server)
 {
-    for (int i = 0; i < server->bankOfficesNo; i++) {
+    for (int i = 0; i <= server->bankOfficesNo; i++) {
         printf("wake up threads\n");
         postNotEmpty(); //"wake up" threads
     }
 
     for(int i = 0; i < server->bankOfficesNo; i++) {
-        pthread_join(server->eletronicCounter[i]->tid,NULL);
+        pthread_join(server->eletronicCounter[i + 1]->tid,NULL);
+        printf("Thread joined\n");
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
-        freeBankOffice(server->eletronicCounter[i]);
+        //freeBankOffice(server->eletronicCounter[i]);
     }
     free(server->eletronicCounter);
 }
