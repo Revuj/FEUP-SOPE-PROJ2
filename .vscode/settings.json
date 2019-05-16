@@ -3,6 +3,11 @@
         "type_traits": "c",
         "constants.h": "c",
         "errno.h": "c",
-        "semaphore.h": "c"
+        "semaphore.h": "c",
+        "server.h": "c",
+        "time.h": "c",
+        "types.h": "c",
+        "stdlib.h": "c",
+        "stdio.h": "c"
     }
 }

@@ -38,7 +38,7 @@ int openLogText(char *logFileName);
 void fillTimeOutReply(client_t *client);
 
 /*
-@Brief - Deletes/Frees a client
+@Brief - Deletes/Frees a client and frees and closes the resources associated with
 @param client - the client to be deleted
 @return - 0 in case of success or 1 otherwise
 */

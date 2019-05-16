@@ -9,46 +9,16 @@
 #include <time.h>
 #include <ctype.h>
 #include <errno.h>
-#include <pthread.h>
 #include <sys/mman.h>
 
 #include "options.h"
 #include "queue.h"
 #include "synch.h"
 #include "../sope.h"
-#include "../types.h"
 #include "../constants.h"
+#include "server.h"
 
-#define READ 0
-#define WRITE 1
-#define PIPE_ERROR_RETURN -1
-#define FORK_ERROR_RETURN -1
-
-pthread_mutex_t bufferLock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t full = PTHREAD_COND_INITIALIZER;
-pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
-
-static queue_t * requestsQueue;
-
-typedef struct {
-    pthread_t tid;
-    tlv_request_t * request;
-    tlv_reply_t  *reply;
-    int fdReply;
-    int orderNr;
-    bank_account_t **bankAccounts; /*array de contas*/
-} BankOffice_t;
-
-
-typedef struct
-{
-    bank_account_t ** bankAccounts; /*array de contas*/
-    BankOffice_t ** eletronicCounter; /*array de bankoffices*/
-    int bankOfficesNo;
-    int sLogFd;
-    int fifoFd;
-    bool up;
-} Server_t;
+static queue_t * requestsQueue; /*buffer with the resquests*/
 
 //====================================================================================================================================
 Server_t * serverWrapper(Server_t * server)
