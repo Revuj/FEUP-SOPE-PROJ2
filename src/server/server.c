@@ -292,8 +292,9 @@ int addBalance(BankOffice_t *bankOffice)
     int id = bankOffice->request->value.transfer.account_id;
     int amount = bankOffice->request->value.transfer.amount;
 
-        bankAccountLock(id);   
-
+    bankAccountLock(id);   
+    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    logDelay(serverWrapper(NULL)->sLogFd, bankOffice->orderNr, bankOffice->request->value.header.op_delay_ms);
     int newBalance = bankOffice->bankAccounts[id]->balance + amount;
 
     if(newBalance > (signed int)MAX_BALANCE) {
@@ -310,7 +311,9 @@ int subtractBalance(BankOffice_t *bankOffice)
     int id = bankOffice->request->value.header.account_id;
     int amount = bankOffice->request->value.transfer.amount;
 
-    bankAccountLock(id);   
+    bankAccountLock(id); 
+    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    logDelay(serverWrapper(NULL)->sLogFd, bankOffice->orderNr, bankOffice->request->value.header.op_delay_ms);
     int newBalance = bankOffice->bankAccounts[id]->balance - amount;
 
     if (newBalance < (signed int)MIN_BALANCE) {
@@ -412,6 +415,8 @@ void OPCreateAccount(BankOffice_t * bankOffice) {
     req_create_account_t create =  bankOffice->request->value.create;
     
     bankAccountLock(bankOffice->request->value.header.account_id);
+    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    logDelay(serverWrapper(NULL)->sLogFd, bankOffice->orderNr, bankOffice->request->value.header.op_delay_ms);
     createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);    
     bankAccountUnlock(bankOffice->request->value.header.account_id);   
 
@@ -425,6 +430,8 @@ void OPBalance(BankOffice_t * bankOffice) {
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
 
     bankAccountLock(bankOffice->request->value.header.account_id);
+    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    logDelay(serverWrapper(NULL)->sLogFd, bankOffice->orderNr, bankOffice->request->value.header.op_delay_ms);
     bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
     bankAccountUnlock(bankOffice->request->value.header.account_id);   
     
@@ -449,6 +456,8 @@ void OPShutDown(BankOffice_t * bankOffice) {
 
     Server_t * server = serverWrapper(NULL);
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
+    usleep(bankOffice->request->value.header.op_delay_ms);
+    logDelay(server->sLogFd, bankOffice->orderNr, bankOffice->request->value.header.op_delay_ms);
     chmod(SERVER_FIFO_PATH,0444);
     bankOffice->reply->value.shutdown.active_offices = server->bankOfficesNo;
     bankOffice->reply->length += sizeof(rep_shutdown_t);

@@ -363,8 +363,6 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         break;
     }
 
-    return 0;
-
     if(openRequestFifo(client) != 0) 
         exit(EXIT_FAILURE);
     
