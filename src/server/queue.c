@@ -26,10 +26,10 @@ int freeQueue(queue_t *queue) {
     return 0;
 }
 
-void readRequest(queue_t *queue, tlv_request_t** request_ptr) {
+void readRequest(queue_t *queue, tlv_request_t** request) {
     pthread_mutex_lock(&queueLock);
 
-    *request_ptr = queue->requests[queue->read_p];
+    *request = queue->requests[queue->read_p];
     queue->read_p = (queue->read_p + 1) % queue->size;
 
     queue->itemsNo++;

@@ -168,7 +168,7 @@ void copyString(char * destiny, char * source) {
     destiny[c] = '\0';
 }
 //====================================================================================================================================
-void generateHash(const char *name, char *fileHash, char *algorithm)
+void generateHash(const char * input, char * output, char * algorithm)
 {
 
     int fd1[2];
@@ -450,13 +450,6 @@ void OPShutDown(BankOffice_t * bankOffice) {
     server->up = false;
 }
 //====================================================================================================================================
-void removeNewLine(char *line)
-{
-    char *pos;
-    if ((pos = strchr(line, '\n')) != NULL)
-        *pos = '\0';
-}
-//====================================================================================================================================
 void validateRequest(BankOffice_t *bankOffice) {
     bankOffice->reply->type = bankOffice->request->type;
     bankOffice->reply->length = sizeof(rep_header_t);
@@ -491,9 +484,6 @@ void validateRequest(BankOffice_t *bankOffice) {
     }
 }
 //====================================================================================================================================
-void resetBankOffice(BankOffice_t *bankOffice) {
-}
-//====================================================================================================================================
 void *runBankOffice(void *arg)
 {
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
@@ -521,9 +511,9 @@ void *runBankOffice(void *arg)
 }
 
 //====================================================================================================================================
-void allocateBankOffice(BankOffice_t * th) {
-    th->reply=(tlv_reply_t *) malloc(sizeof(tlv_reply_t));
-    th->request=(tlv_request_t *)malloc(sizeof(tlv_request_t));
+void allocateBankOffice(BankOffice_t * bankOffice) {
+    bankOffice->reply=(tlv_reply_t *) malloc(sizeof(tlv_reply_t));
+    bankOffice->request=(tlv_request_t *)malloc(sizeof(tlv_request_t));
 }
 //====================================================================================================================================
 void createBankOffices(Server_t *server)

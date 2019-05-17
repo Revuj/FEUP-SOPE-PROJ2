@@ -14,3 +14,35 @@ E - 06180 - [ 33 bytes] 06180 (0000, "fkaewofkwae")          [ 1000 ms] SHUTDOWN
 R - 06180 - [  8 bytes] 0002 SHUTDOWN   LOGIN_FAIL 0
 E - 06182 - [ 33 bytes] 06182 (0000, "foobar123")            [ 2000 ms] SHUTDOWN
 R - 06182 - [ 12 bytes] 0000 SHUTDOWN           OK 2
+E - 13770 - [ 62 bytes] 13770 (0000, "foobar123")            [  500 ms] CREATE   0001        100€ "secret_pass"
+R - 13770 - [  8 bytes] 0000   CREATE           OK
+E - 13773 - [ 62 bytes] 13773 (0000, "foobar123")            [ 5000 ms] CREATE   0002          5€ "bad_password"
+R - 13773 - [  8 bytes] 0000   CREATE           OK
+E - 13784 - [ 62 bytes] 13784 (0001, "foobar123")            [ 1000 ms] CREATE   0003        500€ "good_password"
+R - 13784 - [  8 bytes] 0000   CREATE   LOGIN_FAIL
+E - 13786 - [ 33 bytes] 13786 (0001, "secret_pass")          [ 1000 ms] BALANCE 
+R - 13786 - [ 12 bytes] 0001  BALANCE           OK        100€
+E - 13788 - [ 33 bytes] 13788 (0002, "bad_password")         [ 4000 ms] BALANCE 
+R - 13788 - [ 12 bytes] 0002  BALANCE           OK          5€
+E - 13793 - [ 33 bytes] 13793 (0001, "secret_pass")          [ 1000 ms] SHUTDOWN
+R - 13793 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 13795 - [ 33 bytes] 13795 (0000, "fkaewofkwae")          [ 1000 ms] SHUTDOWN
+R - 13795 - [  8 bytes] 0001 SHUTDOWN   LOGIN_FAIL 0
+E - 13797 - [ 33 bytes] 13797 (0000, "foobar123")            [ 2000 ms] SHUTDOWN
+R - 13797 - [ 12 bytes] 0000 SHUTDOWN           OK 3
+E - 02882 - [ 62 bytes] 02882 (0000, "foobar123")            [  500 ms] CREATE   0001        100€ "secret_pass"
+R - 02882 - [  8 bytes] 0000   CREATE           OK
+E - 02885 - [ 62 bytes] 02885 (0000, "foobar123")            [ 5000 ms] CREATE   0002          5€ "bad_password"
+R - 02885 - [  8 bytes] 0000   CREATE           OK
+E - 02888 - [ 62 bytes] 02888 (0001, "foobar123")            [ 1000 ms] CREATE   0003        500€ "good_password"
+R - 02888 - [  8 bytes] 0000   CREATE   LOGIN_FAIL
+E - 02890 - [ 33 bytes] 02890 (0001, "secret_pass")          [ 1000 ms] BALANCE 
+R - 02890 - [ 12 bytes] 0001  BALANCE           OK        100€
+E - 02892 - [ 33 bytes] 02892 (0002, "bad_password")         [ 4000 ms] BALANCE 
+R - 02892 - [ 12 bytes] 0002  BALANCE           OK          5€
+E - 02894 - [ 33 bytes] 02894 (0001, "secret_pass")          [ 1000 ms] SHUTDOWN
+R - 02894 - [  8 bytes] 0000 SHUTDOWN    OP_NALLOW 0
+E - 02896 - [ 33 bytes] 02896 (0000, "fkaewofkwae")          [ 1000 ms] SHUTDOWN
+R - 02896 - [  8 bytes] 0000 SHUTDOWN   LOGIN_FAIL 0
+E - 02898 - [ 33 bytes] 02898 (0000, "foobar123")            [ 2000 ms] SHUTDOWN
+R - 02898 - [ 12 bytes] 0000 SHUTDOWN           OK 10

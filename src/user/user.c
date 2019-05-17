@@ -174,7 +174,7 @@ int sendRequest(client_t *client)
     return 0;
 }
 //====================================================================================================================================
-int readReply(client_t *client)
+void readReply(client_t *client)
 {
     int nrRead;
 
@@ -194,7 +194,6 @@ int readReply(client_t *client)
     
     logReply(client->uLogFd, client->request->value.header.pid, client->reply);
     cancelAlarm();
-    return 0;
 }
 //====================================================================================================================================
 int checkArgumentsSpacesNo(char *arguments) {
