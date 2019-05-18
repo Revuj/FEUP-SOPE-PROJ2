@@ -195,13 +195,13 @@ void generateHash(const char * input, char * output, char * algorithm)
         close(fd2[WRITE]);
         close(fd1[READ]);
         
-        int n = strlen(name);
-        write(fd1[WRITE], name, n);
+        int n = strlen(input);
+        write(fd1[WRITE], input, n);
         close(fd1[WRITE]);
-        n = read(fd2[READ], fileHash, HASH_LEN);
-        char * fileHashCopy = strtok(fileHash, " ");
+        n = read(fd2[READ], output, HASH_LEN);
+        char * fileHashCopy = strtok(output, " ");
         fileHashCopy[HASH_LEN] = '\0';
-        copyString(fileHash, fileHashCopy);
+        copyString(output, fileHashCopy);
         close(fd2[READ]);
         
     }
@@ -503,7 +503,7 @@ void *runBankOffice(void *arg)
         validateRequest(bankOffice);
         sendReply(bankOffice ,USER_FIFO_PATH_PREFIX);
         logReply(server->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
-        resetBankOffice(bankOffice);
+        //resetBankOffice(bankOffice);
     }
 
     printf("bye thread\n");

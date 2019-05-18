@@ -205,7 +205,7 @@ int validateOPTransfer(BankOffice_t * bankOffice);
  */
 int validateShutDown(BankOffice_t * bankOffice);
 
-/*
+
 /**
  * @brief Creates an accounts
  * 
@@ -213,7 +213,7 @@ int validateShutDown(BankOffice_t * bankOffice);
  */
 void OPCreateAccount(BankOffice_t * bankOffice);
 
-/*
+
 /**
  * @brief Checks balance of an accounts
  * 
@@ -221,7 +221,7 @@ void OPCreateAccount(BankOffice_t * bankOffice);
  */
 void OPBalance(BankOffice_t * bankOffice) ;
 
-/*
+
 /**
  * @brief Transfers money between accounts
  * 
@@ -229,7 +229,7 @@ void OPBalance(BankOffice_t * bankOffice) ;
  */
 void OPTransfer(BankOffice_t * bankOffice);
 
-/*
+
 /**
  * @brief Shuts down the system
  * 
