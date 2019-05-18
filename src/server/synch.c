@@ -1,5 +1,3 @@
-
-
 #include "options.h"
 #include "../sope.h"
 #include "../types.h"
@@ -41,7 +39,7 @@ int bankAccountLock(int id) {
 } 
 
 int bankAccountUnlock(int id) {
-    if  (pthread_mutex_unlock(&bankAccounts_mutex[id]) !=0) {
+    if(pthread_mutex_unlock(&bankAccounts_mutex[id]) !=0) {
         return 1;
     }
     return 0;
@@ -54,8 +52,8 @@ int initializeSemNotFull(int semsNo) {
     return 0;
 }
 
-int initializeSemNotEmpty(int semsNo) {
-    if (sem_init(&notEmpty, 0, semsNo) == -1) {
+int initializeSemNotEmpty() {
+    if (sem_init(&notEmpty,0,0) == -1) {
         return 1;
     }
     return 0;
@@ -70,13 +68,13 @@ int waitNotFull() {
 }
 
 int waitNotEmpty() {
-    printf("wait not empty\n");
-
+printf("dase1\n");
     if (sem_wait(&notEmpty) == -1) {
+        printf("dase2\n");
         return 1;
     }
 
-    printf("a seguir\n");
+    printf("wait not empty\n");
     return 0;
 }
 

@@ -44,10 +44,9 @@ int initializeSemNotFull(int semsNo);
 /**
  * @brief Initializes the notEmpty semaphore
  * 
- * @param semsNo - initial value of the semaphore
  * @return 0 on success or 1 otherwhise
  */
-int initializeSemNotEmpty(int semsNo);
+int initializeSemNotEmpty();
 
 /**
  * @brief Decrements the notFull semaphore

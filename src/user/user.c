@@ -12,50 +12,37 @@
 #include "user.h"
 #include "../constants.h"
 
+static timer_t timerid;
+
 //====================================================================================================================================
 void destroyClient(int status,void *arg)
 {
     client_t *client = (client_t *)arg;
 
-    free(client->request);
-    free(client->reply);
+    timer_delete(timerid);
 
-    if(client->fifoReply > 0) {
-        if(close(client->fifoReply) < 0) {
-            free(client->nameFifoAnswer);
-            perror("Reply fifo");
-            exit(EXIT_FAILURE);
-        }
-    }
+    if(client->uLogFd)
+        close(client->uLogFd);
 
-    if (unlink(client->nameFifoAnswer) < 0) {
-        free(client->nameFifoAnswer);
-        perror("Reply fifo");
-        exit(EXIT_FAILURE);
+    if(client->fifoReply) {
+        close(client->fifoReply);
+        unlink(client->nameFifoAnswer);
     }
     
+    if(client->fifoRequest)
+        close(client->fifoRequest);
+
+    free(client->request);
+    free(client->reply);
     free(client->nameFifoAnswer);
-
-    if(client->fifoRequest > 0) {
-        if(close(client->fifoRequest) < 0) {
-            perror("Request fifo");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if(client->uLogFd > 0) {
-        if(close(client->uLogFd) < 0) {
-            perror("User logfile");
-            exit(EXIT_FAILURE);
-        }
-    }
+    free(client);
 }
 //====================================================================================================================================
 void fillTimeOutReply(client_t *client) {
     client->reply->value.header.account_id = client->request->value.header.account_id;
     client->reply->value.header.ret_code = RC_SRV_TIMEOUT;
     client->reply->type = client->request->type;
-    client->reply->length = sizeof(client->reply->value.header);
+    client->reply->length = sizeof(req_header_t);
 }
 //====================================================================================================================================
 void thread_handler(union sigval sv) {
@@ -68,9 +55,9 @@ void thread_handler(union sigval sv) {
 int openLogText(char *logFileName)
 {
     int fd;
-    if((fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU)) < 0) {
+    if((fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU)) < 0) {
         perror("User logfile");
-        exit(EXIT_FAILURE);
+        return -1;
     }
     
     return fd;
@@ -83,10 +70,10 @@ client_t *createClient()
     client->reply = (tlv_reply_t *)malloc(sizeof(tlv_reply_t));
     client->nameFifoAnswer = (char *)malloc(sizeof(FIFO_LENGTH));
 
-    on_exit(destroyClient,client);
-
     client->request->value.header.pid=getpid();
     client->uLogFd = openLogText(USER_LOGFILE);
+
+    on_exit(destroyClient,client);
         
     return client;
 }
@@ -95,7 +82,7 @@ void fillServerDownReply(client_t * client) {
     client->reply->value.header.account_id = client->request->value.header.account_id;
     client->reply->value.header.ret_code =  RC_SRV_DOWN;
     client->reply->type = client->request->type;
-    client->reply->length = sizeof(client->reply->value.header);
+    client->reply->length = sizeof(req_header_t);
 }
 //====================================================================================================================================
 void openRequestFifo(client_t *client)
@@ -147,7 +134,6 @@ void sendRequest(client_t *client)
 
     openRequestFifo(client);
 
-    printf("sending request\n");
     if (write(client->fifoRequest, client->request, sizeof(op_type_t)+sizeof(uint32_t)+client->request->length) < 0)
     {
         perror("Send request");
@@ -162,11 +148,14 @@ void readReply(client_t *client)
     int nrRead;
 
     while(1){
-        if((nrRead = read(client->fifoReply, &client->reply->type, sizeof(op_type_t))) > 0) {
-            if((nrRead = read(client->fifoReply, &client->reply->length, sizeof(uint32_t))) > 0) {
-                if((nrRead = read(client->fifoReply, &client->reply->value, client->reply->length)) > 0)
+        if((nrRead = read(client->fifoReply, &client->reply->type, sizeof(op_type_t))) != -1) {
+            if((nrRead = read(client->fifoReply, &client->reply->length, sizeof(uint32_t))) != -1) {
+                if((nrRead = read(client->fifoReply, &client->reply->value, client->reply->length)) != -1)
                 {
-                    break;
+                    if (nrRead != 0)
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -191,14 +180,14 @@ void parseCreateAccountArgs(client_t *client,char *args) {
     token = strtok(args, " ");
     client->request->value.create.account_id = atoi(token);
     if(client->request->value.create.account_id < 1 || client->request->value.create.account_id >= MAX_BANK_ACCOUNTS) {
-        fprintf(stderr,"Invalid account id argument\n");
+        fprintf(stderr,"Invalid account id argument - must be >= 0 and <= 4096\n");
         exit(EXIT_SUCCESS);
     }
 
     token = strtok(NULL, " ");
     client->request->value.create.balance = atoi(token);
     if(client->request->value.create.balance < MIN_BALANCE || client->request->value.create.balance > MAX_BALANCE) {
-        fprintf(stderr,"Invalid balance argument\n");
+        fprintf(stderr,"Invalid balance argument - must be >= 1 and <= 1000000000\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -206,7 +195,7 @@ void parseCreateAccountArgs(client_t *client,char *args) {
     strcpy(client->request->value.create.password, token);
     size_t size = strlen(client->request->value.create.password);
     if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
-        fprintf(stderr,"Invalid password argument\n");
+        fprintf(stderr,"Invalid password size - must be >= 8 and <= 20\n");
         exit(EXIT_SUCCESS);
     }
 }
@@ -225,7 +214,7 @@ void createAccountRequest(client_t *client, option_t *options)
 
     parseCreateAccountArgs(client,options->operation_arguments);
 
-    client->request->length = sizeof(client->request->value.header) + sizeof(client->request->value.create);
+    client->request->length = sizeof(req_header_t) + sizeof(req_create_account_t);
 }
 //====================================================================================================================================
 void createBalanceRequest(client_t *client, option_t *options)
@@ -240,7 +229,7 @@ void createBalanceRequest(client_t *client, option_t *options)
         exit(EXIT_SUCCESS);
     }
 
-    client->request->length = sizeof(client->request->value.header);
+    client->request->length = sizeof(req_header_t);
 }
 //====================================================================================================================================
 void parseTransferArgs(client_t *client,char *args) {
@@ -249,14 +238,14 @@ void parseTransferArgs(client_t *client,char *args) {
     token = strtok(args, " ");
     client->request->value.transfer.account_id = atoi(token);
     if(client->request->value.transfer.account_id < 1 || client->request->value.transfer.account_id >= MAX_BANK_ACCOUNTS) {
-        fprintf(stderr,"Invalid account id argument\n");
+        fprintf(stderr,"Invalid account id argument - must be >= 0 and <= 4096\n");
         exit(EXIT_SUCCESS);
     }
 
     token = strtok(NULL, " ");
     client->request->value.transfer.amount = atoi(token);
     if(client->request->value.transfer.amount < MIN_BALANCE || client->request->value.transfer.amount > MAX_BALANCE) {
-        fprintf(stderr,"Invalid amount argument\n");
+        fprintf(stderr,"Invalid amount argument - must be >= 1 and <= 1000000000\n");
         exit(EXIT_SUCCESS);
     }
 }
@@ -275,7 +264,7 @@ void createTransferRequest(client_t *client, option_t *options)
 
     parseTransferArgs(client,options->operation_arguments);
 
-    client->request->length = sizeof(client->request->value.header) + sizeof(client->request->value.transfer);
+    client->request->length = sizeof(req_header_t) + sizeof(req_transfer_t);
 }
 //====================================================================================================================================
 void createShutDownRequest(client_t *client, option_t *options)
@@ -290,7 +279,7 @@ void createShutDownRequest(client_t *client, option_t *options)
         exit(EXIT_SUCCESS);
     }
 
-    client->request->length = sizeof(client->request->value.header);
+    client->request->length = sizeof(req_header_t);
 }
 //====================================================================================================================================
 int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
@@ -301,7 +290,6 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     
     parse_args(argc,argv,options);
 
-    timer_t timerid;
     struct sigevent sev;
     struct itimerspec trigger;
 
@@ -335,7 +323,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         break;
     
     default:  
-        fprintf(stderr,"Invalid operation number\n");  
+        fprintf(stderr,"Invalid operation number\n0 - Create account\n1 - Check Balance\n2 - Make a transfer\n3 - Shutdown the server");  
         exit(EXIT_SUCCESS);
         break;
     }

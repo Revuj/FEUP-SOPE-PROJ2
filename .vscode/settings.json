@@ -9,6 +9,7 @@
         "types.h": "c",
         "stdlib.h": "c",
         "stdio.h": "c",
-        "sope.h": "c"
+        "sope.h": "c",
+        "unistd.h": "c"
     }
 }

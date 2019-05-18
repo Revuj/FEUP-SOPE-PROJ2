@@ -22,7 +22,8 @@ option_t* init_options() {
     return options;
 }
 
-void free_options(option_t *options) {
+static void free_options(int status, void *args) {
+    option_t *options = (option_t *)args;
     free((char*) options->password);
     free(options);
 }
@@ -63,7 +64,7 @@ static int parse_int(const char* str, int* store) {
     char* endp;
     long result = strtol(str, &endp, 10);
 
-    if (endp == str || errno == ERANGE || result >= INT_MAX || result < 0) {
+    if (endp == str || errno == ERANGE || result >= INT_MAX || result <= 0) {
         return -1;
     } else {
         *store = (int)result;
@@ -83,7 +84,7 @@ static int checkPasswordSpaces(char *password) {
 
 static void validateArgs(option_t *options) {
     if(options->bankOfficesNo > MAX_BANK_OFFICES){
-        fprintf(stderr,"Invalid number of bank offices - must be >= 1 and < 4096\n");
+        fprintf(stderr,"Invalid number of bank offices - must be >= 1 and <= 99\n");
         exit(EXIT_SUCCESS);
     }
     
@@ -146,6 +147,8 @@ int parse_args(int argc, char** argv,option_t *options) {
     }
 
     validateArgs(options);
+
+    on_exit(free_options,options);
 
     return 0;
 }

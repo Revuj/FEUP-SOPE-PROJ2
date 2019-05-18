@@ -12,18 +12,15 @@
 
 static pthread_mutex_t queueLock;
 
-int freeQueue(queue_t *queue) {
+static void freeQueue(int status,void *arg) {
+    queue_t *queue = (queue_t *)arg;
     free(queue->requests);
     queue->requests = NULL;
     queue->size = queue->read_p = queue->write_p = 0;
       
-    if (pthread_mutex_destroy(&queueLock) !=0) {
-        return 1;
-    }
+    pthread_mutex_destroy(&queueLock);
 
     free(queue);
-
-    return 0;
 }
 
 void readRequest(queue_t *queue, tlv_request_t** request) {
@@ -32,7 +29,7 @@ void readRequest(queue_t *queue, tlv_request_t** request) {
     *request = queue->requests[queue->read_p];
     queue->read_p = (queue->read_p + 1) % queue->size;
 
-    queue->itemsNo++;
+    queue->itemsNo--;
     pthread_mutex_unlock(&queueLock);
 }
 
@@ -41,7 +38,7 @@ void writeRequest(queue_t *queue,tlv_request_t* request) {
 
     queue->requests[queue->write_p] = request;
     queue->write_p = (queue->write_p + 1) % queue->size;
-    queue->itemsNo--;
+    queue->itemsNo++;
 
     pthread_mutex_unlock(&queueLock);
 }
@@ -52,8 +49,9 @@ queue_t * createQueue(int size) {
     queue->size = size;
     queue->itemsNo = 0;
 
-    if (pthread_mutex_init(&queueLock, NULL) !=0) {
-        return NULL;
-    }
+    pthread_mutex_init(&queueLock, NULL);
+
+    on_exit(freeQueue,queue);
+
     return queue;
 }

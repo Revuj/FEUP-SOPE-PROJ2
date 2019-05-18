@@ -16,6 +16,7 @@ typedef struct {
     int fdReply; /**< @brief file descriptor of the fifo where the reply will be placed*/
     int orderNr; /**< @brief identifier of the bank office*/
     bank_account_t **bankAccounts;  /**< @brief array of bank accounts*/
+    int sLogFd; /**< @brief file descriptor of the file where logs will be written*/
 } BankOffice_t;  /** @} end of the BankOffice_t struct */
 
 
@@ -29,16 +30,7 @@ typedef struct
     int bankOfficesNo; /**< @brief number of threads(bank offices)*/
     int sLogFd; /**< @brief file descriptor of the file where logs will be written*/
     int fifoFd; /**< @brief file descriptor of the fifo to communicate between server and users*/
-    bool up; /**< @brief boolean that identifies if the server is up or down*/
 } Server_t;  /** @} end of the Server_t struct */
-
-/**
-* @Brief Wraps a server so it can be accessed later
-*
-* @param server - server to wrap or NULL value to have the server previously saved returned
-* @return pointer to the server already saved
-*/
-Server_t * serverWrapper(Server_t * server);
 
 /**
 * @Brief Closes the file with the server's log
@@ -63,7 +55,9 @@ void freeBankAccounts(bank_account_t **bankAccounts);
 *
 * @return 0 in case of success or 1 otherwise
 */
-int closeServer(Server_t *server);
+void closeServer(int status,void *arg);
+
+void closeBankOffices(Server_t *server);
 
 /**
 * @Brief Opens fifo's reply
@@ -72,7 +66,7 @@ int closeServer(Server_t *server);
 * @param prefixName - prefix name of the fifo
 * @return 0 in case of success or -1 otherwise
 */
-int openFifoReply(BankOffice_t * bankOffice, char * prefixName);
+void openFifoReply(BankOffice_t * bankOffice, char * prefixName);
 
 /**
 * @Brief Closes fifo's reply
@@ -123,7 +117,7 @@ void generateHash(const char * input, char * output , char *algorithm);
  * @param balance - starting balance of the account
  * @param password  - password of the account
  */
-void createBankAccount(Server_t *server, int id, int balance, char *password);
+void createBankAccount(bank_account_t **bankAccounts, int id, int balance, char *password);
 
 /**
  * @brief Validates Login
@@ -273,7 +267,7 @@ void createBankOffices(Server_t *server);
  * @param fifoName - name of the fifo
  * @return 0 on success or -1 otherwhise
  */
-int createFifo(char *fifoName);
+void createFifo(char *fifoName);
 
 /**
  * @brief Opens Fifo
@@ -315,14 +309,4 @@ void readRequestServer(Server_t *server);
  * @param server - server that owns the mechanisms
  * @return 0 on success or 1 otherwhise
  */
-int initSynch(Server_t * server);
-
-
-
-
-
-
-
-
-
-
+void initSynch(Server_t * server);

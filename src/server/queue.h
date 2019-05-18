@@ -23,14 +23,6 @@ typedef struct {
 queue_t * createQueue(int size);
 
 /**
- * @brief Frees the space allocated for the queue
- * 
- * @param queue - queue to be freed
- * @return 0 on success or 1 otherwhise
- */
-int freeQueue(queue_t *queue);
-
-/**
  * @brief Reads a requests on the queue (pops)
  * 
  * @param queue - queue where the request wil be read

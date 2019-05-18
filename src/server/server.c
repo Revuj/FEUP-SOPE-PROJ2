@@ -19,38 +19,17 @@
 #include "server.h"
 
 static queue_t * requestsQueue; /*buffer with the resquests*/
+static int serverDown; /*boolean that identifies if the server is up or down*/
+static int activeBankOffices; /*active bankoffices counter*/
 
-//====================================================================================================================================
-Server_t * serverWrapper(Server_t * server)
-{
-    static Server_t *compServer;
-    if (server == NULL)
-    {
-    }
-    else
-    {
-        compServer = server;
-    }
 
-    return compServer;
-}
-//====================================================================================================================================
-int closeLogText(Server_t *server)
-{
-    if (close(server->sLogFd) < 0)
-    {
-        perror("Server Log File");
-        return -1;
-    }
-    return 0;
-}
 //====================================================================================================================================
 void closeServerFifo()
 {
     if (unlink(SERVER_FIFO_PATH) < 0)
     {
-        perror("FIFO");
-        exit(2);
+        perror("Server fifo");
+        exit(EXIT_FAILURE);
     }
 }
 //====================================================================================================================================
@@ -62,50 +41,15 @@ void freeBankAccounts(bank_account_t **bankAccounts) {
     free(bankAccounts);
 }
 //====================================================================================================================================
-int closeServer(Server_t *server)
-{
-    if (close(server->fifoFd) == -1) {
-        perror("Couldnt close fifo\n");
-        return 1;
-    }
-
-    if (closeLogText(server) == -1) {
-        perror("Couldnt close log text\n");
-        return 1;
-    }
-
-    freeBankAccounts(server->bankAccounts);
-
-    free(server);
-
-    closeServerFifo();
-
-    return 0;
-}
-//====================================================================================================================================
-int openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
+void openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
     char replyFifo[64];
-    sprintf(replyFifo, "%s%d",prefixName, bankOffice->request->value.header.pid);
+    sprintf(replyFifo, "%s%0*d",prefixName,WIDTH_ID, bankOffice->request->value.header.pid);
 
     printf("fifo reply = %s\n", replyFifo);
-    int fd = open(replyFifo,O_WRONLY);
 
-    if (fd == -1 ) {
-        printf("cant open fifo\n");
+    if ((bankOffice->fdReply = open(replyFifo,O_WRONLY)) < 0) {
         bankOffice->reply->value.header.ret_code = RC_USR_DOWN;
-        return -1;
     } 
-    else {
-        bankOffice->fdReply=fd;
-        return 0;
-    }
-}
-//====================================================================================================================================
-int closeFifoReply(BankOffice_t * bankOffice) {
-    if (close(bankOffice->fdReply) < 0) 
-        return -1;
-
-    return 0;
 }
 //====================================================================================================================================
 void closeBankOffices(Server_t *server)
@@ -122,22 +66,43 @@ void closeBankOffices(Server_t *server)
         printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("After log\n");
+        free(server->eletronicCounter[i]->reply);
+        free(server->eletronicCounter[i]->request);
         free(server->eletronicCounter[i]);
     }
     free(server->eletronicCounter);
 }
 //====================================================================================================================================
-int sendReply(BankOffice_t * bankOffice,char *prefixName) {
-    if (openFifoReply(bankOffice,prefixName) == -1) 
-        return -1;
+void closeServer(int status,void* arg)
+{
+    printf("boas\n");
+    Server_t *server = (Server_t *)arg;
+
+    destroyMutex(MAX_BANK_ACCOUNTS);
+    destroySems();
     
-    if (write(bankOffice->fdReply,bankOffice->reply,sizeof(op_type_t)+sizeof(uint32_t)+bankOffice->reply->length)== -1)
-        return -1;
+    if(server->sLogFd) 
+        close(server->sLogFd);
+    
+    if(server->fifoFd) {
+        close(server->fifoFd);
+        closeServerFifo();
+    }
+    
+    freeBankAccounts(server->bankAccounts);
+    closeBankOffices(server);
+        printf("closed banks\n");
 
-    if (closeFifoReply(bankOffice) == -1)
-        return -1;
+    free(server);
+}
+//====================================================================================================================================
+void sendReply(BankOffice_t * bankOffice,char *prefixName) {
+    openFifoReply(bankOffice,prefixName);
+    
+    write(bankOffice->fdReply,bankOffice->reply,sizeof(op_type_t)+sizeof(uint32_t)+bankOffice->reply->length);
 
-    return 0;
+    if(bankOffice->fdReply > 0)    
+        close(bankOffice->fdReply);
 }
 //====================================================================================================================================
 bool accountExists(BankOffice_t * bankOffice, int id)
@@ -170,7 +135,6 @@ void copyString(char * destiny, char * source) {
 //====================================================================================================================================
 void generateHash(const char * input, char * output, char * algorithm)
 {
-
     int fd1[2];
     int fd2[2];
 
@@ -222,7 +186,7 @@ void generateHash(const char * input, char * output, char * algorithm)
     }
 }
 //====================================================================================================================================
-void createBankAccount(Server_t *server, int id, int balance, char *password)
+void createBankAccount(bank_account_t **bankAccounts, int id, int balance, char *password)
 {
     bank_account_t *account = (bank_account_t *)malloc(sizeof(bank_account_t));
     account->account_id = id;
@@ -231,9 +195,7 @@ void createBankAccount(Server_t *server, int id, int balance, char *password)
     char hashInput[HASH_LEN + MAX_PASSWORD_LEN + 1];
     snprintf(hashInput, HASH_LEN + MAX_PASSWORD_LEN + 1, "%s%s",password, account->salt);
     generateHash(hashInput, account->hash, "sha256sum");
-    server->bankAccounts[id] = account;
-    logAccountCreation(server->sLogFd, id, account);
-
+    bankAccounts[id] = account;
 }
 //====================================================================================================================================
 bool validateLogin(BankOffice_t *bankOffice)
@@ -266,21 +228,14 @@ int addBalance(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.transfer.account_id;
     int amount = bankOffice->request->value.transfer.amount;
-    Server_t * server = serverWrapper(NULL);
-
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,id);
-    bankAccountLock(id);
-    logSyncDelay(server->sLogFd,bankOffice->tid,id,bankOffice->request->value.header.op_delay_ms);
-    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    
     int newBalance = bankOffice->bankAccounts[id]->balance + amount;
 
     if(newBalance > (signed int)MAX_BALANCE) {
         return -1;
     }
-    bankOffice->bankAccounts[id]->balance = newBalance;
-    bankAccountUnlock(id);   
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,id);  
-
+    
+    bankOffice->bankAccounts[id]->balance = newBalance; 
     return 0;
 }
 //====================================================================================================================================
@@ -288,26 +243,56 @@ int subtractBalance(BankOffice_t *bankOffice)
 {
     int id = bankOffice->request->value.header.account_id;
     int amount = bankOffice->request->value.transfer.amount;
-    Server_t * server = serverWrapper(NULL);
 
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,id);
-    bankAccountLock(id);   
-    logSyncDelay(server->sLogFd,bankOffice->tid,id,bankOffice->request->value.header.op_delay_ms);
-    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
     int newBalance = bankOffice->bankAccounts[id]->balance - amount;
 
     if (newBalance < (signed int)MIN_BALANCE) {
         return -1;
     }
-    bankOffice->bankAccounts[id]->balance = newBalance;
-    bankAccountUnlock(id);   
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,id);  
-    
+
+    bankOffice->bankAccounts[id]->balance = newBalance;  
     return 0;
 }
 //====================================================================================================================================
+void lockAccount(BankOffice_t *bankOffice,int id) {
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_ACCOUNT,id);
+    bankAccountLock(id);
+    
+    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    logSyncDelay(bankOffice->sLogFd,bankOffice->tid,id,bankOffice->request->value.header.op_delay_ms);
+}
+//====================================================================================================================================
+void lockAccountsTranfer(BankOffice_t *bankOffice) {
+    int subtract_id = bankOffice->request->value.header.account_id; 
+    int add_id = bankOffice->request->value.transfer.account_id;
+
+    if(subtract_id < add_id) {
+        lockAccount(bankOffice,subtract_id);
+
+        lockAccount(bankOffice,add_id);
+    }
+    else {
+        lockAccount(bankOffice,add_id);
+
+        lockAccount(bankOffice,subtract_id);
+    }
+}
+//====================================================================================================================================
+void unlockAccountsTranfer(BankOffice_t *bankOffice) {
+    int subtract_id = bankOffice->request->value.header.account_id; 
+    int add_id = bankOffice->request->value.transfer.account_id;
+
+    bankAccountUnlock(subtract_id);   
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,subtract_id); 
+
+    bankAccountUnlock(add_id);   
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,add_id); 
+} 
+//====================================================================================================================================
 int transference(BankOffice_t *bankOffice)
 {
+    lockAccountsTranfer(bankOffice);
+
     if (subtractBalance(bankOffice) < 0) {
         bankOffice->reply->value.header.ret_code = RC_NO_FUNDS;
         return -1;
@@ -317,6 +302,8 @@ int transference(BankOffice_t *bankOffice)
         bankOffice->reply->value.header.ret_code = RC_TOO_HIGH;
         return -1;
     }
+
+    unlockAccountsTranfer(bankOffice);
 
     return 0;
 }
@@ -394,15 +381,15 @@ void OPCreateAccount(BankOffice_t * bankOffice) {
         return;
 
     req_create_account_t create =  bankOffice->request->value.create;
-    Server_t * server = serverWrapper(NULL);
 
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);
-    bankAccountLock(bankOffice->request->value.header.account_id);
-    logSyncDelay(server->sLogFd,bankOffice->tid,bankOffice->request->value.header.account_id,bankOffice->request->value.header.op_delay_ms);
-    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
-    createBankAccount(serverWrapper(NULL), create.account_id, create.balance, create.password);    
-    bankAccountUnlock(bankOffice->request->value.header.account_id);   
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);  
+    lockAccount(bankOffice,create.account_id);
+    
+    createBankAccount(bankOffice->bankAccounts, create.account_id, create.balance, create.password);
+    logAccountCreation(bankOffice->sLogFd, create.account_id, bankOffice->bankAccounts[create.account_id]);    
+    
+    bankAccountUnlock(create.account_id);   
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,create.account_id);  
+    
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
 }
 //====================================================================================================================================
@@ -411,15 +398,13 @@ void OPBalance(BankOffice_t * bankOffice) {
         return; 
 
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-    Server_t * server = serverWrapper(NULL);
 
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);
-    bankAccountLock(bankOffice->request->value.header.account_id);
-    logSyncDelay(server->sLogFd,bankOffice->tid,bankOffice->request->value.header.account_id,bankOffice->request->value.header.op_delay_ms);
-    usleep(bankOffice->request->value.header.op_delay_ms * 1000);
+    lockAccount(bankOffice,bankOffice->request->value.header.account_id);
+    
     bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
+    
     bankAccountUnlock(bankOffice->request->value.header.account_id); 
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);  
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);  
     
     bankOffice->reply->length += sizeof(rep_balance_t);
 }
@@ -427,8 +412,10 @@ void OPBalance(BankOffice_t * bankOffice) {
 void OPTransfer(BankOffice_t * bankOffice) {
     bankOffice->reply->length += sizeof(rep_transfer_t);
     int id = bankOffice->request->value.header.account_id;
+    
     bankOffice->reply->value.header.account_id = id;
     bankOffice->reply->value.transfer.balance = bankOffice->request->value.transfer.amount;
+    
     if (validateOPTransfer(bankOffice) != 0)
         return;    
 
@@ -440,31 +427,41 @@ void OPShutDown(BankOffice_t * bankOffice) {
     if (validateShutDown(bankOffice) != 0)
         return;  
 
-    Server_t * server = serverWrapper(NULL);
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id;
-    logDelay(server->sLogFd,bankOffice->tid,bankOffice->request->value.header.op_delay_ms);
+    
+    logDelay(bankOffice->sLogFd,bankOffice->tid,bankOffice->request->value.header.op_delay_ms);
     usleep(bankOffice->request->value.header.op_delay_ms * 1000);
     chmod(SERVER_FIFO_PATH,0444);
-    bankOffice->reply->value.shutdown.active_offices = server->bankOfficesNo;
+    
+    bankOffice->reply->value.shutdown.active_offices = activeBankOffices;
     bankOffice->reply->length += sizeof(rep_shutdown_t);
-    server->up = false;
+    serverDown = 1;
 }
 //====================================================================================================================================
-void validateRequest(BankOffice_t *bankOffice) {
-    bankOffice->reply->type = bankOffice->request->type;
-    bankOffice->reply->length = sizeof(rep_header_t);
-    Server_t * server = serverWrapper(NULL);
-
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);
+int loginClient(BankOffice_t * bankOffice) {
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);
     bankAccountLock(bankOffice->request->value.header.account_id);
+    
     if(!validateLogin(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
         bankAccountUnlock(bankOffice->request->value.header.account_id);
-        logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);  
-        return;
+        logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);  
+        return -1;
     }
+    
     bankAccountUnlock(bankOffice->request->value.header.account_id);
-    logSyncMech(server->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.account_id);  
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);
+
+    return 0;
+}
+//====================================================================================================================================
+void processRequest(BankOffice_t *bankOffice) {
+    activeBankOffices++;
+    bankOffice->reply->type = bankOffice->request->type;
+    bankOffice->reply->length = sizeof(rep_header_t);
+    
+    if(loginClient(bankOffice) < 0)
+        return;
 
     switch(bankOffice->request->type) {
         case OP_CREATE_ACCOUNT:
@@ -482,28 +479,37 @@ void validateRequest(BankOffice_t *bankOffice) {
         default:
             break;
     }
+    activeBankOffices--;
 }
 //====================================================================================================================================
 void *runBankOffice(void *arg)
 {
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
-    Server_t *server = serverWrapper(NULL);
  
     while (1) {
+        printf("ola1\n");
+        logSyncMechSem(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
+
         waitNotEmpty();
-        printf("checking if\n");
-        if (!server->up && requestsQueue->itemsNo == 0) {
+                printf("ola2\n");
+
+        
+        if (serverDown && requestsQueue->itemsNo == 0) {
             break;
         }
+        
+        logSyncMech(bankOffice->sLogFd, bankOffice->orderNr,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,0);
         readRequest(requestsQueue, &bankOffice->request);
-        logSyncMech(server->sLogFd, bankOffice->orderNr,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.pid);
-        logRequest(server->sLogFd, bankOffice ->orderNr, bankOffice ->request);
+        logSyncMech(bankOffice->sLogFd, bankOffice->orderNr,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.pid);
+        logRequest(bankOffice->sLogFd, bankOffice ->orderNr, bankOffice ->request);
+        
         postNotFull();
-        logSyncMechSem(server->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_POST,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.pid,getvalueNotFull());
-        validateRequest(bankOffice);
+        logSyncMechSem(bankOffice->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_POST,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.pid,getvalueNotFull());
+        
+        processRequest(bankOffice);
+        
         sendReply(bankOffice ,USER_FIFO_PATH_PREFIX);
-        logReply(server->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
-        //resetBankOffice(bankOffice);
+        logReply(bankOffice->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
     }
 
     printf("bye thread\n");
@@ -522,181 +528,169 @@ void createBankOffices(Server_t *server)
     {
         server->eletronicCounter[i] = (BankOffice_t *)malloc(sizeof(BankOffice_t));
         allocateBankOffice(server->eletronicCounter[i]); 
+        
         server->eletronicCounter[i]->orderNr = i + 1;
         server->eletronicCounter[i]->bankAccounts=server->bankAccounts;
+        server->eletronicCounter[i]->sLogFd=server->sLogFd;
+        
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("create id = %ld\n", server->eletronicCounter[i]->tid);
     }
 }
 //====================================================================================================================================
-int createFifo(char *fifoName)
+void createFifo(char *fifoName)
 {
-    if (mkfifo(fifoName, S_IRUSR | S_IWUSR))
+    if (mkfifo(fifoName, S_IRUSR | S_IWUSR) < 0)
     {
         if (errno == EEXIST)
         {
+            if(unlink(fifoName) < 0){
+                printf("1\n");
+                perror("Server fifo");
+                exit(EXIT_FAILURE);
+            }
+            if(mkfifo(fifoName, S_IRUSR | S_IWUSR) < 0) {
+                                printf("2\n");
 
-            unlink(fifoName);
-            mkfifo(fifoName, S_IRUSR | S_IWUSR);
-            return 0;
+                perror("Server fifo");
+                exit(EXIT_FAILURE);
+            }
         }
         else
         {
-            perror("FIFO");
-            return -1;
+                            printf("3\n");
+
+            perror("Server fifo");
+            exit(EXIT_FAILURE);
         }
     }
-    return 0;
 }
 //====================================================================================================================================
 int openFifo(char *fifoName)
 {
-    int fd = open(fifoName, O_RDONLY | O_NONBLOCK);
+    int fd;
 
-    if (fd < 0)
+    if ((fd = open(fifoName, O_RDONLY/* | O_NONBLOCK*/)) < 0)
     {
-        perror("Opening fifo");
-        return -1;
+                        printf("4\n");
+
+        perror("Server fifo");
+        exit(EXIT_FAILURE);
     }
 
     return fd;
 }
-
 //====================================================================================================================================
 int openLogText(char *logFileName)
 {
-    int fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU);
-    if (fd == -1)
+    int fd;
+    if ((fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU)) < 0)
     {
-        perror("Server Log File");
+        perror("Server log file");
         return -1;
     }
     return fd;
 }
 //====================================================================================================================================
+void createAdminAccount(Server_t *server,char *adminPassword) {
+    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_ACCOUNT,ADMIN_ACCOUNT_ID);
+    bankAccountLock(ADMIN_ACCOUNT_ID);
+    
+    createBankAccount(server->bankAccounts,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
+    logAccountCreation(server->sLogFd,MAIN_THREAD_ID,server->bankAccounts[ADMIN_ACCOUNT_ID]);
+    
+    bankAccountUnlock(ADMIN_ACCOUNT_ID);
+    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,ADMIN_ACCOUNT_ID);
+}
+//====================================================================================================================================
+void initSynch(Server_t * server) {
+    if (initializeMutex(MAX_BANK_ACCOUNTS) == 1 )
+        exit(EXIT_FAILURE);
+
+    logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_INIT,SYNC_ROLE_PRODUCER,0,server->bankOfficesNo);
+    if (initializeSemNotFull(server->bankOfficesNo) == 1)
+        exit(EXIT_FAILURE);
+
+    logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_INIT,SYNC_ROLE_PRODUCER,0,0);
+    if (initializeSemNotEmpty() == 1)
+        exit(EXIT_FAILURE); 
+}
+//====================================================================================================================================
 Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *adminPassword)
-{
-    int fifoFd, logFd;
- 
-    Server_t *server = (Server_t *)malloc(sizeof(Server_t));
-    server->up = true;
- 
+{ 
+    Server_t *server = (Server_t *)malloc(sizeof(Server_t)); 
     server->bankAccounts = (bank_account_t **)malloc(sizeof(bank_account_t *) * MAX_BANK_ACCOUNTS);
+    server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
 
     for (int i = 0; i < MAX_BANK_ACCOUNTS; i++)
         server->bankAccounts[i] = NULL;
- 
-    if (createFifo(fifoName) == -1)
-        return NULL;
- 
-    if ((fifoFd=openFifo(fifoName)) < 0) {
-        return NULL;
-    }
- 
-    if ((logFd=openLogText(logFileName)) == -1) {
-        return NULL;
-    }
 
-    server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
- 
-    server->sLogFd = logFd;
-    server->fifoFd = fifoFd;
+    createFifo(fifoName);
+
+    server->sLogFd = openLogText(logFileName);
+
     server->bankOfficesNo = bankOfficesNo;
+    requestsQueue = createQueue(server->bankOfficesNo);
+    initSynch(server);
+    createAdminAccount(server,adminPassword);
+    createBankOffices(server);
+     
+    server->fifoFd = openFifo(fifoName);
 
-    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_PRODUCER,ADMIN_ACCOUNT_ID);
-    bankAccountLock(ADMIN_ACCOUNT_ID);
-    createBankAccount(server,ADMIN_ACCOUNT_ID,ADMIN_ACCOUNT_BALLANCE,adminPassword);
-    bankAccountUnlock(ADMIN_ACCOUNT_ID);
-    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_PRODUCER,ADMIN_ACCOUNT_ID);
+    on_exit(closeServer,server);
 
     return server;
 }
 //====================================================================================================================================
+void processRequestServer(Server_t *server, tlv_request_t *request) {
+    logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request->value.header.pid,getvalueNotFull());
+    waitNotFull();
+    
+    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_PRODUCER,request->value.header.pid);
+    writeRequest(requestsQueue,request);
+    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_PRODUCER,request->value.header.pid);
+    
+    postNotEmpty();
+    logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_POST,SYNC_ROLE_PRODUCER,request->value.header.pid,getvalueNotEmpty());
+}
+//====================================================================================================================================
 void readRequestServer(Server_t *server) {
     int n;
-    while (server->up)
+    tlv_request_t request;
+    while (!serverDown)
     {
-        tlv_request_t request;
-        if ((n = read(server->fifoFd, &request.type, sizeof(op_type_t))) != -1) {
-            if (n == 0) {
-                close(server->fifoFd);
-                openFifo(SERVER_FIFO_PATH);
-            }
-            else if ((n = read(server->fifoFd, &request.length, sizeof(uint32_t))) != -1) {
-                if (n == 0) {
-                    close(server->fifoFd);
-                    openFifo(SERVER_FIFO_PATH);
-                }
-                else if((n = read(server->fifoFd, &request.value, request.length)) != -1) {
-                    if (n == 0) {
-                        close(server->fifoFd);
-                        openFifo(SERVER_FIFO_PATH);
-                    }
-                    else {
-                        logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotFull());
-                        waitNotFull();
-                        logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_PRODUCER,request.value.header.pid);
-                        writeRequest(requestsQueue,&request);
-                        logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_PRODUCER,request.value.header.pid);
-                        postNotEmpty();
-                        logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_POST,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotEmpty());
-                    }
+        if ((n = read(server->fifoFd, &request.type, sizeof(op_type_t))) > 0) {
+            if ((n = read(server->fifoFd, &request.length, sizeof(uint32_t))) > 0) {
+                if((n = read(server->fifoFd, &request.value, request.length)) > 0) {
+                    processRequestServer(server,&request);
                 }
             }
         }
     }
-}
-//====================================================================================================================================
-int initSynch(Server_t * server) {
-    if (initializeMutex(MAX_BANK_ACCOUNTS)== 1 ) {
-        return 1;
+    while(requestsQueue->itemsNo) {
+        printf("ola111111111\n");
+        logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotFull());
+        waitNotFull();
+
+        postNotEmpty();
+        logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_POST,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotEmpty());
     }
-    logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_INIT,SYNC_ROLE_PRODUCER,0,server->bankOfficesNo);
-    if (initializeSemNotFull(server->bankOfficesNo) == 1) {
-        return 1;
-    } 
-    logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_INIT,SYNC_ROLE_PRODUCER,0,0);
-    if (initializeSemNotEmpty(0) == 1) {
-        return 1;
-    } 
-    return 0;
 }
 //====================================================================================================================================
 int main(int argc, char **argv)
 {
-    option_t *options=init_options();
+    option_t *options = init_options();
+
     parse_args(argc,argv,options);
  
     srand(time(NULL));
  
     Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, options->bankOfficesNo, options->password);
- 
-    if (server == NULL)
-    {
-        perror("Server Initialization");
-        exit(1);
-    }
-
-    serverWrapper(server);
     
-    requestsQueue = createQueue(server->bankOfficesNo);
-    
-    if (initSynch(server) == 1) {
-        perror("Synchronization Mechanisms Initialization");
-        exit(2);
-    }
-
-    createBankOffices(server);
-
     readRequestServer(server);
 
-    printf("closing banks\n");
-    closeBankOffices(server);
-    printf("closed banks\n");
-    destroyMutex(MAX_BANK_ACCOUNTS);
-    destroySems();
-    freeQueue(requestsQueue);
-    free_options(options);
-    closeServer(server);
+    printf("boas1\n");
+
+    exit(EXIT_SUCCESS);
 }

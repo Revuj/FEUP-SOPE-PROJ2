@@ -23,8 +23,8 @@ option_t* init_options() {
 
 static void free_options(int status, void *args) {
     option_t *options = (option_t *)args;
-    free((char*) options->password);
-    free((char*) options->operation_arguments);
+    free(options->password);
+    free(options->operation_arguments);
     free(options);
 }
 
@@ -72,18 +72,18 @@ static int parse_int(const char* str, int* store) {
 
 static void validateArgs(option_t *options) {
     if(options->account_id > MAX_BANK_ACCOUNTS){
-        fprintf(stderr,"Invalid account id\n");
+        fprintf(stderr,"Invalid account id - must be >= 0 and <= 4096\n");
         exit(EXIT_SUCCESS);
     }
 
     size_t size = strlen(options->password);
     if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
-        fprintf(stderr,"Invalid password size\n");
+        fprintf(stderr,"Invalid password size - must be >= 8 and <= 20\n");
         exit(EXIT_SUCCESS);
     }
 
     if(options->op_delay_ms > MAX_OP_DELAY_MS) {
-        fprintf(stderr,"Invalid operation delay\n");
+        fprintf(stderr,"Invalid operation delay - must be >= 0 and <= 99999\n");
         exit(EXIT_SUCCESS);
     }
 }
