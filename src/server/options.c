@@ -39,10 +39,7 @@ static const char* short_options = "+h";
 // x for no_argument, x: for required_argument, x:: for optional_argument
 
 
-static const wchar_t* usage = L"Usage: user [option] ID password delay operation_code arguments_list\n"
-    "arguments_list is a space-separated string\n"
-    "General:\n"
-    "  -h, --help,           \n";
+static const wchar_t* usage = L"Usage: ./server <number_of_threads(bank offices)> \"admin password\"\n";
 
 static void print_usage() {
     setlocale(LC_ALL, "");
@@ -52,7 +49,7 @@ static void print_usage() {
 
 static void print_numpositional(int n) {
     setlocale(LC_ALL, "");
-    wprintf(L"Error: Expected 5 positional arguments, but got %d.\n%S", n, usage);
+    wprintf(L"Error: Expected 2 positional arguments, but got %d.\n%S", n, usage);
     exit(EXIT_SUCCESS);
 }
 
@@ -86,7 +83,7 @@ static int checkPasswordSpaces(char *password) {
 
 static void validateArgs(option_t *options) {
     if(options->bankOfficesNo > MAX_BANK_OFFICES){
-        fprintf(stderr,"Invalid number of bank offices\n");
+        fprintf(stderr,"Invalid number of bank offices - must be >= 1 and < 4096\n");
         exit(EXIT_SUCCESS);
     }
     
@@ -97,7 +94,7 @@ static void validateArgs(option_t *options) {
 
     size_t size = strlen(options->password);
     if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
-        fprintf(stderr,"Invalid password size\n");
+        fprintf(stderr,"Invalid password size - must be >= 8 and <= 20\n");
         exit(EXIT_SUCCESS);
     }
 }
