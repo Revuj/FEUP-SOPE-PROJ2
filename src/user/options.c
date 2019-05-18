@@ -14,32 +14,26 @@
 #include <math.h>
 #include <limits.h>
 
-// <!--- OPTIONS (Resolve externals of options.h)
 int o_show_help = false; // h, help
-// ----> END OF OPTIONS
 
 option_t* init_options() {
     option_t* options = (option_t *)malloc(sizeof(option_t));
     return options;
 }
 
-void free_options(option_t *options) {
+static void free_options(int status, void *args) {
+    option_t *options = (option_t *)args;
     free((char*) options->password);
     free((char*) options->operation_arguments);
     free(options);
 }
 
 static const struct option long_options[] = {
-    // general options
     {HELP_LFLAG,              no_argument, &o_show_help,       true},
-    // end of options
     {0, 0, 0, 0}
 };
 
-// enforce POSIX with +
 static const char* short_options = "+h";
-// x for no_argument, x: for required_argument, x:: for optional_argument
-
 
 static const wchar_t* usage = L"Usage: user [option] ID password delay operation_code arguments_list\n"
     "arguments_list is a space-separated string\n"
@@ -76,11 +70,29 @@ static int parse_int(const char* str, int* store) {
     }
 }
 
+static void validateArgs(option_t *options) {
+    if(options->account_id > MAX_BANK_ACCOUNTS){
+        fprintf(stderr,"Invalid account id\n");
+        exit(EXIT_SUCCESS);
+    }
+
+    size_t size = strlen(options->password);
+    if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
+        fprintf(stderr,"Invalid password size\n");
+        exit(EXIT_SUCCESS);
+    }
+
+    if(options->op_delay_ms > MAX_OP_DELAY_MS) {
+        fprintf(stderr,"Invalid operation delay\n");
+        exit(EXIT_SUCCESS);
+    }
+}
+
 /**
  * Standard unix main's argument parsing function.
  */
 int parse_args(int argc, char** argv,option_t *options) {
-    // If there are no args, print usage message and exit
+
     if (argc == 1) {
         print_usage();
     }
@@ -128,6 +140,10 @@ int parse_args(int argc, char** argv,option_t *options) {
     } else {
         print_numpositional(num_positional);
     }
+
+    validateArgs(options);
+
+    on_exit(free_options,options);
 
     return 0;
 }

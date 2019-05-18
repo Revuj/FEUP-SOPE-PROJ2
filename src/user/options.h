@@ -27,13 +27,6 @@ typedef struct {
 option_t* init_options();
 
 /**
- * @brief Frees space used to save options
- * 
- * @param options to be freed
- */
-void free_options(option_t *options);
-
-/**
  * @brief Parses the command lines arguments
  * 
  * @param argc - number of arguments on the command line
