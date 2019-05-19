@@ -144,11 +144,7 @@ int parse_args(int argc, char** argv,option_t *options) {
 
     on_exit(free_options,options);
 
-    printf("my dude\n");
-
     validateArgs(options);
-
-    printf("validate nice\n");
 
     return 0;
 }
