@@ -45,22 +45,16 @@ void closeBankOffices(int status,void *arg)
 {
     Server_t *server = (Server_t *)arg;
     for (int i = 0; i < server->bankOfficesNo; i++) {
-        printf("wake up threads\n");
         postNotEmpty(); //"wake up" threads
     }
 
     for(int i = 0; i < server->bankOfficesNo; i++) {
-        printf("calling thread_join %d\n", server->eletronicCounter[i]->orderNr);
-        printf("thread id = %ld\n", server->eletronicCounter[i]->tid);
         pthread_join(server->eletronicCounter[i]->tid,NULL);
-        printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
-        printf("After log\n");
         //free(server->eletronicCounter[i]->request);
         //free(server->eletronicCounter[i]->reply);
         free(server->eletronicCounter[i]);
     }
-    printf("closed banks\n");
 }
 //====================================================================================================================================
 void destroySync() {
@@ -94,8 +88,6 @@ void closeServer(int status,void* arg)
 void openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
     char replyFifo[64];
     sprintf(replyFifo, "%s%0*d",prefixName,WIDTH_ID, bankOffice->request->value.header.pid);
-
-    printf("fifo reply = %s\n", replyFifo);
 
     if ((bankOffice->fdReply = open(replyFifo,O_WRONLY)) < 0) {
         bankOffice->reply->value.header.ret_code = RC_USR_DOWN;
@@ -514,7 +506,6 @@ void *runBankOffice(void *arg)
         logReply(bankOffice->sLogFd, bankOffice ->request->value.header.pid, bankOffice ->reply);
     }
 
-    printf("bye thread\n");
     return NULL;
 }
 
@@ -537,7 +528,6 @@ void createBankOffices(Server_t *server)
         
         pthread_create(&(server->eletronicCounter[i]->tid), NULL,runBankOffice, server->eletronicCounter[i]);
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
-        printf("create id = %ld\n", server->eletronicCounter[i]->tid);
     }
 
     on_exit(closeBankOffices,server);
@@ -669,7 +659,6 @@ void readRequestServer(Server_t *server) {
         }
     }
     while(requestsQueue->itemsNo) {
-        printf("ola111111111\n");
         logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotFull());
         waitNotFull();
 

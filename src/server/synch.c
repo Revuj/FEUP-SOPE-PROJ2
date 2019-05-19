@@ -63,27 +63,20 @@ int waitNotFull() {
     if(sem_wait(&notFull) == -1) {
         return 1;
     }
-    printf("wait not full\n");
     return 0;
 }
 
 int waitNotEmpty() {
-printf("dase1\n");
     if (sem_wait(&notEmpty) == -1) {
-        printf("dase2\n");
         return 1;
     }
-
-    printf("wait not empty\n");
     return 0;
 }
 
 int postNotFull() {
-
     if (sem_post(&notFull) == -1) {
         return 1;
     }
-    printf("post not full\n");
     return 0;
 }
 
@@ -91,7 +84,6 @@ int postNotEmpty() {
     if (sem_post(&notEmpty) == -1) {
         return 1;
     }
-    printf("post not empty\n");
     return 0;
 }
 

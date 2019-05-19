@@ -23,13 +23,9 @@ option_t* init_options() {
 
 static void free_options(int status, void *args) {
     option_t *options = (option_t *)args;
-    printf("freeing password\n");
     free(options->password);
-    printf("freeing arguments\n");
     free(options->operation_arguments);
-    printf("freeing options\n");
     free(options);
-    printf("nice free\n");
 }
 
 static const struct option long_options[] = {
