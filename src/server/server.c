@@ -520,7 +520,7 @@ void createBankOffices(Server_t *server)
     for (int i = 0; i < server->bankOfficesNo; i++)
     {
         server->eletronicCounter[i] = (BankOffice_t *)malloc(sizeof(BankOffice_t));
-        allocateBankOffice(server->eletronicCounter[i]); 
+        allocateBankOffice(server->eletronicCounter[i]) ; 
         
         server->eletronicCounter[i]->orderNr = i + 1;
         server->eletronicCounter[i]->bankAccounts=server->bankAccounts;
