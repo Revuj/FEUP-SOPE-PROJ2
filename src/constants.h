@@ -35,3 +35,14 @@
 #define USER_FIFO_PATH_LEN (sizeof(USER_FIFO_PATH_PREFIX) + WIDTH_ID + 1)
 
 #define FIFO_TIMEOUT_SECS 30
+
+#define PASSWORD_ERROR 1
+#define ID_ERROR 2
+#define OP_CODE_ERROR 3
+#define DELAY_ERROR 4
+#define THREADS_NO_ERROR 5
+#define FIFO_ERROR 6
+#define WRITE_ERROR 7
+#define BALANCE_ERROR 8
+#define POS_ERROR 9
+#define ARG_NUM_ERROR 10

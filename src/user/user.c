@@ -88,7 +88,7 @@ void openRequestFifo(client_t *client)
     if((client->fifoRequest = open(SERVER_FIFO_PATH, O_WRONLY)) < 0) {
         fillServerDownReply(client);
         logReply(client->uLogFd, client->request->value.header.pid, client->reply);
-        exit(EXIT_SUCCESS);
+        exit(FIFO_ERROR);
     }
 }
 //====================================================================================================================================
@@ -102,17 +102,17 @@ void createReplyFifo(client_t *client)
         {
             if(unlink(client->nameFifoAnswer) < 0) {
                 perror(client->nameFifoAnswer);
-                exit(EXIT_FAILURE);
+                exit(FIFO_ERROR);
             }
             if(mkfifo(client->nameFifoAnswer, S_IRUSR | S_IWUSR) < 0) {
                 perror(client->nameFifoAnswer);
-                exit(EXIT_FAILURE);
+                exit(FIFO_ERROR);
             }
         }
         else
         {
             perror(client->nameFifoAnswer);
-            exit(EXIT_FAILURE);
+            exit(FIFO_ERROR);
         }
     }
 }
@@ -122,7 +122,7 @@ void openReplyFifo(client_t *client)
     if ((client->fifoReply = open(client->nameFifoAnswer, O_RDONLY)) < 0)
     {
         perror("Reply fifo");
-        exit(EXIT_FAILURE);
+        exit(FIFO_ERROR);
     }
 }
 //====================================================================================================================================
@@ -135,7 +135,7 @@ void sendRequest(client_t *client)
     if (write(client->fifoRequest, client->request, sizeof(op_type_t)+sizeof(uint32_t)+client->request->length) < 0)
     {
         perror("Send request");
-        exit(EXIT_FAILURE);
+        exit(WRITE_ERROR);
     }
 }
 //====================================================================================================================================
@@ -179,14 +179,14 @@ void parseCreateAccountArgs(client_t *client,char *args) {
     client->request->value.create.account_id = atoi(token);
     if(client->request->value.create.account_id < 1 || client->request->value.create.account_id >= MAX_BANK_ACCOUNTS) {
         fprintf(stderr,"Invalid account id argument - must be >= 0 and <= 4096\n");
-        exit(EXIT_SUCCESS);
+        exit(ID_ERROR);
     }
 
     token = strtok(NULL, " ");
     client->request->value.create.balance = atoi(token);
     if(client->request->value.create.balance < MIN_BALANCE || client->request->value.create.balance > MAX_BALANCE) {
         fprintf(stderr,"Invalid balance argument - must be >= 1 and <= 1000000000\n");
-        exit(EXIT_SUCCESS);
+        exit(BALANCE_ERROR);
     }
 
     token = strtok(NULL, " ");
@@ -194,7 +194,7 @@ void parseCreateAccountArgs(client_t *client,char *args) {
     size_t size = strlen(client->request->value.create.password);
     if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
         fprintf(stderr,"Invalid password size - must be >= 8 and <= 20\n");
-        exit(EXIT_SUCCESS);
+        exit(PASSWORD_ERROR);
     }
 }
 //====================================================================================================================================
@@ -207,7 +207,7 @@ void createAccountRequest(client_t *client, option_t *options)
 
     if(checkArgumentsSpacesNo(options->operation_arguments) != 2) {
         fprintf(stderr,"Invalid number of arguments for this operation\n");
-        exit(EXIT_SUCCESS);
+        exit(ARG_NUM_ERROR);
     }
 
     parseCreateAccountArgs(client,options->operation_arguments);
@@ -224,7 +224,7 @@ void createBalanceRequest(client_t *client, option_t *options)
 
     if(checkArgumentsSpacesNo(options->operation_arguments) != 0) {
         fprintf(stderr,"Invalid number of arguments for this operation\n");
-        exit(EXIT_SUCCESS);
+        exit(ARG_NUM_ERROR);
     }
 
     client->request->length = sizeof(req_header_t);
@@ -237,14 +237,14 @@ void parseTransferArgs(client_t *client,char *args) {
     client->request->value.transfer.account_id = atoi(token);
     if(client->request->value.transfer.account_id < 1 || client->request->value.transfer.account_id >= MAX_BANK_ACCOUNTS) {
         fprintf(stderr,"Invalid account id argument - must be >= 0 and <= 4096\n");
-        exit(EXIT_SUCCESS);
+        exit(ID_ERROR);
     }
 
     token = strtok(NULL, " ");
     client->request->value.transfer.amount = atoi(token);
     if(client->request->value.transfer.amount < MIN_BALANCE || client->request->value.transfer.amount > MAX_BALANCE) {
         fprintf(stderr,"Invalid amount argument - must be >= 1 and <= 1000000000\n");
-        exit(EXIT_SUCCESS);
+        exit(BALANCE_ERROR);
     }
 }
 //====================================================================================================================================
@@ -257,7 +257,7 @@ void createTransferRequest(client_t *client, option_t *options)
 
     if(checkArgumentsSpacesNo(options->operation_arguments) != 1) {
         fprintf(stderr,"Invalid number of arguments for this operation\n");
-        exit(EXIT_SUCCESS);
+        exit(ARG_NUM_ERROR);
     }
 
     parseTransferArgs(client,options->operation_arguments);
@@ -274,7 +274,7 @@ void createShutDownRequest(client_t *client, option_t *options)
 
     if(checkArgumentsSpacesNo(options->operation_arguments) != 0) {
         fprintf(stderr,"Invalid number of arguments for this operation\n");
-        exit(EXIT_SUCCESS);
+        exit(ARG_NUM_ERROR);
     }
 
     client->request->length = sizeof(req_header_t);
@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     
     default:  
         fprintf(stderr,"Invalid operation number\n0 - Create account\n1 - Check Balance\n2 - Make a transfer\n3 - Shutdown the server");  
-        exit(EXIT_SUCCESS);
+        exit(OP_CODE_ERROR);
         break;
     }
 

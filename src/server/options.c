@@ -45,19 +45,19 @@ static const wchar_t* usage = L"Usage: ./server <number_of_threads(bank offices)
 static void print_usage() {
     setlocale(LC_ALL, "");
     wprintf(usage);
-    exit(EXIT_SUCCESS);
+    exit(EXIT_FAILURE);
 }
 
 static void print_numpositional(int n) {
     setlocale(LC_ALL, "");
     wprintf(L"Error: Expected 2 positional arguments, but got %d.\n%S", n, usage);
-    exit(EXIT_SUCCESS);
+    exit(ARG_NUM_ERROR);
 }
 
 static void print_badpositional(int i) {
     setlocale(LC_ALL, "");
     wprintf(L"Error: Positional argument #%d is invalid.\n%S", i, usage);
-    exit(EXIT_SUCCESS);
+    exit(POS_ERROR);
 }
 
 static int parse_int(const char* str, int* store) {
@@ -85,18 +85,18 @@ static int checkPasswordSpaces(char *password) {
 static void validateArgs(option_t *options) {
     if(options->bankOfficesNo > MAX_BANK_OFFICES){
         fprintf(stderr,"Invalid number of bank offices - must be >= 1 and <= 99\n");
-        exit(EXIT_SUCCESS);
+        exit(THREADS_NO_ERROR);
     }
     
     if(checkPasswordSpaces(options->password) != 0) {
         fprintf(stderr,"Password can not contain spaces\n");
-        exit(EXIT_SUCCESS);
+        exit(PASSWORD_ERROR);
     }
 
     size_t size = strlen(options->password);
     if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
         fprintf(stderr,"Invalid password size - must be >= 8 and <= 20\n");
-        exit(EXIT_SUCCESS);
+        exit(PASSWORD_ERROR);
     }
 }
 
@@ -105,9 +105,6 @@ static void validateArgs(option_t *options) {
  */
 int parse_args(int argc, char** argv,option_t *options) {
     // If there are no args, print usage message and exit
-    if (argc == 1) {
-        print_usage();
-    }
 
     // Standard getopt_long Options Loop
     while (true) {
@@ -129,10 +126,6 @@ int parse_args(int argc, char** argv,option_t *options) {
             print_usage();
         }
     } // End [Options Loop] while
-
-    if (o_show_help) {
-        print_usage();
-    }
 
     // Exactly 2 positional arguments are expected
     int num_positional = argc - optind;

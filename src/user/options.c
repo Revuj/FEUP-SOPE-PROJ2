@@ -53,19 +53,19 @@ static const wchar_t* usage = L"Usage: ./user <option> <account_id> <password> <
 static void print_usage() {
     setlocale(LC_ALL, "");
     wprintf(usage);
-    exit(EXIT_SUCCESS);
+    exit(EXIT_FAILURE);
 }
 
 static void print_numpositional(int n) {
     setlocale(LC_ALL, "");
     wprintf(L"Error: Expected 5 positional arguments, but got %d.\n%S", n, usage);
-    exit(EXIT_SUCCESS);
+    exit(ARG_NUM_ERROR);
 }
 
 static void print_badpositional(int i) {
     setlocale(LC_ALL, "");
     wprintf(L"Error: Positional argument #%d is invalid.\n%S", i, usage);
-    exit(EXIT_SUCCESS);
+    exit(POS_ERROR);
 }
 
 static int parse_int(const char* str, int* store) {
@@ -83,18 +83,18 @@ static int parse_int(const char* str, int* store) {
 static void validateArgs(option_t *options) {
     if(options->account_id > MAX_BANK_ACCOUNTS){
         fprintf(stderr,"Invalid account id - must be >= 0 and <= 4096\n");
-        exit(EXIT_SUCCESS);
+        exit(ID_ERROR);
     }
 
     size_t size = strlen(options->password);
     if(size < MIN_PASSWORD_LEN || size > MAX_PASSWORD_LEN) {
         fprintf(stderr,"Invalid password size - must be >= 8 and <= 20\n");
-        exit(EXIT_SUCCESS);
+        exit(PASSWORD_ERROR);
     }
 
     if(options->op_delay_ms > MAX_OP_DELAY_MS) {
         fprintf(stderr,"Invalid operation delay - must be >= 0 and <= 99999\n");
-        exit(EXIT_SUCCESS);
+        exit(DELAY_ERROR);
     }
 }
 
@@ -127,10 +127,6 @@ int parse_args(int argc, char** argv,option_t *options) {
             print_usage();
         }
     } // End [Options Loop] while
-
-    if (o_show_help) {
-        print_usage();
-    }
 
     // Exactly 5 positional arguments are expected
     int num_positional = argc - optind;
