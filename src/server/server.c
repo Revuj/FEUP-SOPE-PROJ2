@@ -281,10 +281,10 @@ void unlockAccountsTranfer(BankOffice_t *bankOffice) {
     int add_id = bankOffice->request->value.transfer.account_id;
 
     bankAccountUnlock(subtract_id);   
-    //logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,subtract_id); 
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,subtract_id); 
 
     bankAccountUnlock(add_id);   
-    //logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,add_id); 
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,add_id); 
 } 
 //====================================================================================================================================
 int transference(BankOffice_t *bankOffice)
@@ -386,7 +386,7 @@ void OPCreateAccount(BankOffice_t * bankOffice) {
     logAccountCreation(bankOffice->sLogFd, create.account_id, bankOffice->bankAccounts[create.account_id]);    
     
     bankAccountUnlock(create.account_id);   
-    //logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,create.account_id);  
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,create.account_id);  
     
     bankOffice->reply->value.header.account_id = bankOffice->request->value.header.account_id; 
 }
@@ -402,7 +402,7 @@ void OPBalance(BankOffice_t * bankOffice) {
     bankOffice->reply->value.balance.balance = checkBalance(bankOffice);  
     
     bankAccountUnlock(bankOffice->request->value.header.account_id); 
-    //logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);  
+    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);  
     
     bankOffice->reply->length += sizeof(rep_balance_t);
 }
@@ -437,18 +437,12 @@ void OPShutDown(BankOffice_t * bankOffice) {
 }
 //====================================================================================================================================
 int loginClient(BankOffice_t * bankOffice) {
-    logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);
-    bankAccountLock(bankOffice->request->value.header.account_id);
     
     if(!validateLogin(bankOffice)) {
         bankOffice->reply->value.header.ret_code = RC_LOGIN_FAIL;
-        bankAccountUnlock(bankOffice->request->value.header.account_id);
-       // logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);  
         return -1;
     }
     
-    bankAccountUnlock(bankOffice->request->value.header.account_id);
-    //logSyncMech(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,bankOffice->request->value.header.account_id);
 
     return 0;
 }
@@ -486,7 +480,7 @@ void *runBankOffice(void *arg)
  
     while (1) {
         printf("ola1\n");
-        logSyncMechSem(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
+        logSyncMechSem(bankOffice->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
 
         waitNotEmpty();
                 printf("ola2\n");
@@ -599,7 +593,7 @@ void createAdminAccount(Server_t *server,char *adminPassword) {
     logAccountCreation(server->sLogFd,MAIN_THREAD_ID,server->bankAccounts[ADMIN_ACCOUNT_ID]);
     
     bankAccountUnlock(ADMIN_ACCOUNT_ID);
-    //logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,ADMIN_ACCOUNT_ID);
+    logSyncMech(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_ACCOUNT,ADMIN_ACCOUNT_ID);
 }
 //====================================================================================================================================
 void initSynch(Server_t * server) {
