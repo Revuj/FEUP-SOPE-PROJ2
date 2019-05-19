@@ -332,11 +332,6 @@ int validateOPBalance(BankOffice_t * bankOffice) {
         return -1;
     }
 
-    if (!accountExists(bankOffice, bankOffice->request->value.header.account_id)) {
-        bankOffice->reply->value.header.ret_code = RC_OTHER;
-        return -2;
-    }
-
     return 0;
 }
 //====================================================================================================================================
