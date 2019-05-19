@@ -574,7 +574,7 @@ void openFifo(Server_t *server)
         perror("Server fifo");
         exit(EXIT_FAILURE);
     }
-    on_exit(closeServerFifo,server);
+    on_exit(closeServerFifofd,server);
 }
 //====================================================================================================================================
 void openLogText(Server_t *server)
