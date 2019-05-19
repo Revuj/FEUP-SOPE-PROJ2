@@ -41,19 +41,9 @@ void freeBankAccounts(bank_account_t **bankAccounts) {
     free(bankAccounts);
 }
 //====================================================================================================================================
-void openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
-    char replyFifo[64];
-    sprintf(replyFifo, "%s%0*d",prefixName,WIDTH_ID, bankOffice->request->value.header.pid);
-
-    printf("fifo reply = %s\n", replyFifo);
-
-    if ((bankOffice->fdReply = open(replyFifo,O_WRONLY)) < 0) {
-        bankOffice->reply->value.header.ret_code = RC_USR_DOWN;
-    } 
-}
-//====================================================================================================================================
-void closeBankOffices(Server_t *server)
+void closeBankOffices(int status,void *arg)
 {
+    Server_t *server = (Server_t *)arg;
     for (int i = 0; i < server->bankOfficesNo; i++) {
         printf("wake up threads\n");
         postNotEmpty(); //"wake up" threads
@@ -66,32 +56,50 @@ void closeBankOffices(Server_t *server)
         printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("After log\n");
+        //free(server->eletronicCounter[i]->request);
+        //free(server->eletronicCounter[i]->reply);
         free(server->eletronicCounter[i]);
     }
-    free(server->eletronicCounter);
+    printf("closed banks\n");
+}
+//====================================================================================================================================
+void destroySync() {
+    destroyMutex(MAX_BANK_ACCOUNTS);
+    destroySems();
+}
+//====================================================================================================================================
+void closeSlog(int status,void* arg)
+{
+    Server_t *server = (Server_t *)arg;
+
+    close(server->sLogFd);
+}
+//====================================================================================================================================
+void closeServerFifofd(int status,void* arg)
+{
+    Server_t *server = (Server_t *)arg;
+
+    close(server->fifoFd);
 }
 //====================================================================================================================================
 void closeServer(int status,void* arg)
 {
-    printf("boas\n");
     Server_t *server = (Server_t *)arg;
-
-    destroyMutex(MAX_BANK_ACCOUNTS);
-    destroySems();
-    
-    if(server->sLogFd) 
-        close(server->sLogFd);
-    
-    if(server->fifoFd) {
-        close(server->fifoFd);
-        closeServerFifo();
-    }
     
     freeBankAccounts(server->bankAccounts);
-    closeBankOffices(server);
-        printf("closed banks\n");
-
+    free(server->eletronicCounter);
     free(server);
+}
+//====================================================================================================================================
+void openFifoReply(BankOffice_t * bankOffice, char * prefixName) {
+    char replyFifo[64];
+    sprintf(replyFifo, "%s%0*d",prefixName,WIDTH_ID, bankOffice->request->value.header.pid);
+
+    printf("fifo reply = %s\n", replyFifo);
+
+    if ((bankOffice->fdReply = open(replyFifo,O_WRONLY)) < 0) {
+        bankOffice->reply->value.header.ret_code = RC_USR_DOWN;
+    } 
 }
 //====================================================================================================================================
 void sendReply(BankOffice_t * bankOffice,char *prefixName) {
@@ -485,12 +493,8 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
  
     while (1) {
-        printf("ola1\n");
         logSyncMechSem(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
-
         waitNotEmpty();
-                printf("ola2\n");
-
         
         if (serverDown && requestsQueue->itemsNo == 0) {
             break;
@@ -499,7 +503,7 @@ void *runBankOffice(void *arg)
         logSyncMech(bankOffice->sLogFd, bankOffice->orderNr,SYNC_OP_MUTEX_LOCK,SYNC_ROLE_CONSUMER,0);
         readRequest(requestsQueue, &bankOffice->request);
         logSyncMech(bankOffice->sLogFd, bankOffice->orderNr,SYNC_OP_MUTEX_UNLOCK,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.pid);
-        logRequest(bankOffice->sLogFd, bankOffice ->orderNr, bankOffice ->request);
+        logRequest(bankOffice->sLogFd, bankOffice ->orderNr, bankOffice->request);
         
         postNotFull();
         logSyncMechSem(bankOffice->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_POST,SYNC_ROLE_CONSUMER,bankOffice->request->value.header.pid,getvalueNotFull());
@@ -535,6 +539,8 @@ void createBankOffices(Server_t *server)
         logBankOfficeOpen(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("create id = %ld\n", server->eletronicCounter[i]->tid);
     }
+
+    on_exit(closeBankOffices,server);
 }
 //====================================================================================================================================
 void createFifo(char *fifoName)
@@ -544,51 +550,41 @@ void createFifo(char *fifoName)
         if (errno == EEXIST)
         {
             if(unlink(fifoName) < 0){
-                printf("1\n");
                 perror("Server fifo");
                 exit(EXIT_FAILURE);
             }
             if(mkfifo(fifoName, S_IRUSR | S_IWUSR) < 0) {
-                                printf("2\n");
-
                 perror("Server fifo");
                 exit(EXIT_FAILURE);
             }
         }
         else
         {
-                            printf("3\n");
-
             perror("Server fifo");
             exit(EXIT_FAILURE);
         }
     }
+    atexit(closeServerFifo);
 }
 //====================================================================================================================================
-int openFifo(char *fifoName)
+void openFifo(Server_t *server)
 {
-    int fd;
-
-    if ((fd = open(fifoName, O_RDONLY/* | O_NONBLOCK*/)) < 0)
+    if ((server->fifoFd = open(SERVER_FIFO_PATH, O_RDONLY/* | O_NONBLOCK*/)) < 0)
     {
-                        printf("4\n");
-
         perror("Server fifo");
         exit(EXIT_FAILURE);
     }
-
-    return fd;
+    on_exit(closeServerFifo,server);
 }
 //====================================================================================================================================
-int openLogText(char *logFileName)
+void openLogText(Server_t *server)
 {
-    int fd;
-    if ((fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU)) < 0)
+    if ((server->sLogFd = open(SERVER_LOGFILE, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU)) < 0)
     {
         perror("Server log file");
-        return -1;
+        exit(EXIT_FAILURE);
     }
-    return fd;
+    on_exit(closeSlog,server);
 }
 //====================================================================================================================================
 void createAdminAccount(Server_t *server,char *adminPassword) {
@@ -613,6 +609,8 @@ void initSynch(Server_t * server) {
     logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_INIT,SYNC_ROLE_PRODUCER,0,0);
     if (initializeSemNotEmpty() == 1)
         exit(EXIT_FAILURE); 
+
+    atexit(destroySync);
 }
 //====================================================================================================================================
 Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *adminPassword)
@@ -620,24 +618,27 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     Server_t *server = (Server_t *)malloc(sizeof(Server_t)); 
     server->bankAccounts = (bank_account_t **)malloc(sizeof(bank_account_t *) * MAX_BANK_ACCOUNTS);
     server->eletronicCounter = (BankOffice_t **)malloc(sizeof(BankOffice_t *) * bankOfficesNo);
+    server->bankOfficesNo = bankOfficesNo;
 
     for (int i = 0; i < MAX_BANK_ACCOUNTS; i++)
         server->bankAccounts[i] = NULL;
 
+    on_exit(closeServer,server);
+
     createFifo(fifoName);
 
-    server->sLogFd = openLogText(logFileName);
-
-    server->bankOfficesNo = bankOfficesNo;
+    openLogText(server);
+    
     requestsQueue = createQueue(server->bankOfficesNo);
+    
     initSynch(server);
+    
     createAdminAccount(server,adminPassword);
     logSyncDelay(server->sLogFd, MAIN_THREAD_ID, ADMIN_ACCOUNT_ID, 0);
+    
     createBankOffices(server);
 
-    server->fifoFd = openFifo(fifoName);
-
-    on_exit(closeServer,server);
+    openFifo(server);
 
     return server;
 }
@@ -688,8 +689,6 @@ int main(int argc, char **argv)
     Server_t *server = initServer(SERVER_LOGFILE, SERVER_FIFO_PATH, options->bankOfficesNo, options->password);
     
     readRequestServer(server);
-
-    printf("boas1\n");
 
     exit(EXIT_SUCCESS);
 }

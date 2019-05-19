@@ -32,13 +32,6 @@ typedef struct
     int fifoFd; /**< @brief file descriptor of the fifo to communicate between server and users*/
 } Server_t;  /** @} end of the Server_t struct */
 
-/**
-* @Brief Closes the file with the server's log
-*
-* @param server - server whose log file is associated with
-* @return 0 if success or -1 otherwise
-*/
-int closeLogText(Server_t *server);
 
 /**
 * @Brief Closes the server's fifo
@@ -51,30 +44,51 @@ void closeServerFifo();
 void freeBankAccounts(bank_account_t **bankAccounts);
 
 /**
+ * @Brief - Closes the bankoffices
+ * @param status - exit status
+ * @param arg
+ */
+void closeBankOffices(int status,void *arg);
+
+/**
+ * @Brief - Destroy synchronization mechanisms
+ */
+void destroySync();
+
+/**
+ * @Brief - Close the server log file
+ * @param status - exit status
+ * @param arg
+ */
+void closeSlog(int status,void* arg);
+
+/**
+ * @Brief - Close server fifo
+ * @param status - exit status
+ * @param arg
+ */
+void closeServerFifofd(int status,void* arg);
+
+/**
 * @Brief Closes the server and frees or closes some resources
-*
-* @return 0 in case of success or 1 otherwise
 */
 void closeServer(int status,void *arg);
-
-void closeBankOffices(Server_t *server);
 
 /**
 * @Brief Opens fifo's reply
 *
 * @param bankoffice - bankOffice with the associated fifo that the reply will be sent
 * @param prefixName - prefix name of the fifo
-* @return 0 in case of success or -1 otherwise
 */
 void openFifoReply(BankOffice_t * bankOffice, char * prefixName);
 
 /**
-* @Brief Closes fifo's reply
-*
-* @param bankoffice - bankOffice with the associated fifo that the reply will be sent
-* @return 0 in case of success or -1 otherwise
-*/
-int closeFifoReply(BankOffice_t * bankOffice);
+ * @Brief Sends reply
+ *
+ * @param bankoffice - bankOffice with the associated fifo that the reply will be sent
+ * @param prefixName - prefix name of the fifo
+ */
+void sendReply(BankOffice_t * bankOffice,char *prefixName);
 
 /**
 * @Brief Checks if a bank account exists
@@ -152,6 +166,25 @@ int addBalance(BankOffice_t *bankOffice);
 int subtractBalance(BankOffice_t *bankOffice);
 
 /**
+ * @Brief - Gets access to the account and applies the operation delay
+ * @param bankOffice - Bank office
+ * @param id - account id
+ */
+void lockAccount(BankOffice_t *bankOffice,int id);
+
+/**
+ * @Brief - Lock accounts for transfers
+ * @param bankOffice
+ */
+void lockAccountsTranfer(BankOffice_t *bankOffice);
+
+/**
+ * @Brief - Unlock accounts for transfers
+ * @param bankOffice
+ */
+void unlockAccountsTranfer(BankOffice_t *bankOffice);
+
+/**
  * @brief Transferes money from an account to other
  * 
  * @param bankOffice - Bank office that will transfer the money
@@ -199,14 +232,12 @@ int validateOPTransfer(BankOffice_t * bankOffice);
  */
 int validateShutDown(BankOffice_t * bankOffice);
 
-
 /**
  * @brief Creates an accounts
  * 
  * @param bankOffice - Bank office that execute the operation
  */
 void OPCreateAccount(BankOffice_t * bankOffice);
-
 
 /**
  * @brief Checks balance of an accounts
@@ -215,14 +246,12 @@ void OPCreateAccount(BankOffice_t * bankOffice);
  */
 void OPBalance(BankOffice_t * bankOffice) ;
 
-
 /**
  * @brief Transfers money between accounts
  * 
  * @param bankOffice - Bank office that execute the operation
  */
 void OPTransfer(BankOffice_t * bankOffice);
-
 
 /**
  * @brief Shuts down the system
@@ -231,14 +260,18 @@ void OPTransfer(BankOffice_t * bankOffice);
  */
 void OPShutDown(BankOffice_t * bankOffice);
 
+/**
+ * @Brief - Login Client
+ * @param bankOffice
+ */
+int loginClient(BankOffice_t * bankOffice);
 
 /**
- * @brief Validates a request send by an user
+ * @brief Process a request send by an user
  * 
  * @param bankOffice - Bank offices that executes the validation
  */
-void validateRequest(BankOffice_t *bankOffice);
-
+void processRequest(BankOffice_t *bankOffice);
 
 /**
  * @brief function that simulates a bank office
@@ -272,18 +305,29 @@ void createFifo(char *fifoName);
 /**
  * @brief Opens Fifo
  * 
- * @param fifoName - name of the fifo
- * @return 0 on success or -1 otherwhise
+ * @param server - Server whose file descriptor will be initialized
  */
-int openFifo(char *fifoName);
+void openFifo(Server_t *server);
 
 /**
  * @brief Opens a file where the logs will be saved
  * 
- * @param logFileName - name of the file
- * @return 0 on success or -1 otherwhise
+ * @param server - Server whose file descriptor will be initialized
  */
-int openLogText(char *logFileName);
+void openLogText(Server_t *server);
+
+/**
+ * @Brief - Create the admin account
+ * @param adminPassword
+ */
+void createAdminAccount(Server_t *server,char *adminPassword);
+
+/**
+ * @brief Initializes synchronization mechanisms
+ * 
+ * @param server - server that owns the mechanisms
+ */
+void initSynch(Server_t * server);
 
 /**
  * @brief Initializes the server
@@ -297,16 +341,15 @@ int openLogText(char *logFileName);
 Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char *adminPassword);
 
 /**
+ * @Brief - Process the new request
+ * @param server 
+ * @param request
+ */
+void processRequestServer(Server_t *server, tlv_request_t *request);
+
+/**
  * @brief Reads requests on the fifo buffer
  * 
  * @param server - server that is reading the requests
  */
 void readRequestServer(Server_t *server);
-
-/**
- * @brief Initializes synchronization mechanisms
- * 
- * @param server - server that owns the mechanisms
- * @return 0 on success or 1 otherwhise
- */
-void initSynch(Server_t * server);

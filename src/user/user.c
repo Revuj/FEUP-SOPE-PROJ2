@@ -15,20 +15,37 @@
 static timer_t timerid;
 
 //====================================================================================================================================
-void destroyClient(int status,void *arg)
+void closeUlog(int status,void *arg)
 {
     client_t *client = (client_t *)arg;
 
-    if(client->uLogFd)
-        close(client->uLogFd);
+    close(client->uLogFd);
+}
+//====================================================================================================================================
+void closeRequestFifo(int status,void *arg)
+{
+    client_t *client = (client_t *)arg;
 
-    if(client->fifoReply) {
-        close(client->fifoReply);
-        unlink(client->nameFifoAnswer);
-    }
-    
-    if(client->fifoRequest)
-        close(client->fifoRequest);
+    close(client->fifoRequest);
+}
+//====================================================================================================================================
+void closeReplyFifo(int status,void *arg)
+{
+    client_t *client = (client_t *)arg;
+
+    close(client->fifoReply);
+}
+//====================================================================================================================================
+void deleteReplyFifo(int status,void *arg)
+{
+    client_t *client = (client_t *)arg;
+
+    unlink(client->nameFifoAnswer);
+}
+//====================================================================================================================================
+void destroyClient(int status,void *arg)
+{
+    client_t *client = (client_t *)arg;
 
     free(client->request);
     free(client->reply);
@@ -50,46 +67,13 @@ void thread_handler(union sigval sv) {
     exit(EXIT_SUCCESS);
 }
 //====================================================================================================================================
-int openLogText(char *logFileName)
+void openLogText(client_t *client)
 {
-    int fd;
-    if((fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU)) < 0) {
+    if((client->uLogFd = open(USER_LOGFILE, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU)) < 0) {
         perror("User logfile");
-        return -1;
+        exit(EXIT_FAILURE);
     }
-    
-    return fd;
-}
-//====================================================================================================================================
-client_t *createClient()
-{
-    client_t *client = (client_t *)malloc(sizeof(client_t));
-    client->request = (tlv_request_t *)malloc(sizeof(tlv_request_t));
-    client->reply = (tlv_reply_t *)malloc(sizeof(tlv_reply_t));
-    client->nameFifoAnswer = (char *)malloc(sizeof(FIFO_LENGTH));
-
-    client->request->value.header.pid=getpid();
-    client->uLogFd = openLogText(USER_LOGFILE);
-
-    on_exit(destroyClient,client);
-        
-    return client;
-}
-//====================================================================================================================================
-void fillServerDownReply(client_t * client) {
-    client->reply->value.header.account_id = client->request->value.header.account_id;
-    client->reply->value.header.ret_code =  RC_SRV_DOWN;
-    client->reply->type = client->request->type;
-    client->reply->length = sizeof(req_header_t);
-}
-//====================================================================================================================================
-void openRequestFifo(client_t *client)
-{
-    if((client->fifoRequest = open(SERVER_FIFO_PATH, O_WRONLY)) < 0) {
-        fillServerDownReply(client);
-        logReply(client->uLogFd, client->request->value.header.pid, client->reply);
-        exit(EXIT_SUCCESS);
-    }
+    on_exit(closeUlog,client);
 }
 //====================================================================================================================================
 void createReplyFifo(client_t *client)
@@ -115,6 +99,40 @@ void createReplyFifo(client_t *client)
             exit(EXIT_FAILURE);
         }
     }
+    on_exit(deleteReplyFifo,client);
+}
+//====================================================================================================================================
+client_t *createClient()
+{
+    client_t *client = (client_t *)malloc(sizeof(client_t));
+    client->request = (tlv_request_t *)malloc(sizeof(tlv_request_t));
+    client->reply = (tlv_reply_t *)malloc(sizeof(tlv_reply_t));
+    client->nameFifoAnswer = (char *)malloc(sizeof(FIFO_LENGTH));
+
+    on_exit(destroyClient,client);
+
+    client->request->value.header.pid=getpid();
+    openLogText(client);
+    createReplyFifo(client);
+        
+    return client;
+}
+//====================================================================================================================================
+void fillServerDownReply(client_t * client) {
+    client->reply->value.header.account_id = client->request->value.header.account_id;
+    client->reply->value.header.ret_code =  RC_SRV_DOWN;
+    client->reply->type = client->request->type;
+    client->reply->length = sizeof(req_header_t);
+}
+//====================================================================================================================================
+void openRequestFifo(client_t *client)
+{
+    if((client->fifoRequest = open(SERVER_FIFO_PATH, O_WRONLY)) < 0) {
+        fillServerDownReply(client);
+        logReply(client->uLogFd, client->request->value.header.pid, client->reply);
+        exit(EXIT_SUCCESS);
+    }
+    on_exit(closeRequestFifo,client);
 }
 //====================================================================================================================================
 void openReplyFifo(client_t *client)
@@ -124,6 +142,7 @@ void openReplyFifo(client_t *client)
         perror("Reply fifo");
         exit(EXIT_FAILURE);
     }
+    on_exit(closeReplyFifo,client);
 }
 //====================================================================================================================================
 void sendRequest(client_t *client)
@@ -284,10 +303,6 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
 {
     client_t *client = createClient();
 
-    option_t *options = init_options();
-    
-    parse_args(argc,argv,options);
-
     struct sigevent sev;
     struct itimerspec trigger;
 
@@ -301,6 +316,10 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     timer_create(CLOCK_REALTIME, &sev, &timerid);
 
     trigger.it_value.tv_sec = FIFO_TIMEOUT_SECS;
+
+    option_t *options = init_options();
+    
+    parse_args(argc,argv,options);
     
     switch (options->type)
     {
@@ -325,8 +344,6 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
         exit(EXIT_SUCCESS);
         break;
     }
-
-    createReplyFifo(client);
 
     sendRequest(client);
     

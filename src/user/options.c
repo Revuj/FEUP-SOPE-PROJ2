@@ -65,7 +65,6 @@ static void print_numpositional(int n) {
 static void print_badpositional(int i) {
     setlocale(LC_ALL, "");
     wprintf(L"Error: Positional argument #%d is invalid.\n%S", i, usage);
-    exit(EXIT_SUCCESS);
 }
 
 static int parse_int(const char* str, int* store) {
