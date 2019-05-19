@@ -648,7 +648,7 @@ void processRequestServer(Server_t *server, tlv_request_t *request) {
 void readRequestServer(Server_t *server) {
     int n;
     tlv_request_t request;
-    while (!serverDown)
+    while (!serverDown || n != 0)
     {
         if ((n = read(server->fifoFd, &request.type, sizeof(op_type_t))) > 0) {
             if ((n = read(server->fifoFd, &request.length, sizeof(uint32_t))) > 0) {
@@ -657,7 +657,13 @@ void readRequestServer(Server_t *server) {
                 }
             }
         }
+        else {
+            close(server->fifoFd);
+            openFifo(server);
+        }
+        printf("bad read boy\n");
     }
+
     while(requestsQueue->itemsNo) {
         logSyncMechSem(server->sLogFd,MAIN_THREAD_ID,SYNC_OP_SEM_WAIT,SYNC_ROLE_PRODUCER,request.value.header.pid,getvalueNotFull());
         waitNotFull();
@@ -669,6 +675,7 @@ void readRequestServer(Server_t *server) {
 //====================================================================================================================================
 int main(int argc, char **argv)
 {
+    
     option_t *options = init_options();
 
     parse_args(argc,argv,options);
