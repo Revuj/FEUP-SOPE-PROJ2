@@ -55,7 +55,7 @@ void thread_handler(union sigval sv) {
 int openLogText(char *logFileName)
 {
     int fd;
-    if((fd = open(logFileName, O_WRONLY | O_TRUNC | O_CREAT, S_IRWXU)) < 0) {
+    if((fd = open(logFileName, O_WRONLY | O_APPEND | O_CREAT, S_IRWXU)) < 0) {
         perror("User logfile");
         return -1;
     }

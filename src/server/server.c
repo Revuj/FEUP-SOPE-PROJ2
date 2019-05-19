@@ -66,8 +66,6 @@ void closeBankOffices(Server_t *server)
         printf("Thread joined %d\n", server->eletronicCounter[i]->orderNr);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
         printf("After log\n");
-        free(server->eletronicCounter[i]->reply);
-        free(server->eletronicCounter[i]->request);
         free(server->eletronicCounter[i]);
     }
     free(server->eletronicCounter);
