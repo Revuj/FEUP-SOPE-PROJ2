@@ -632,8 +632,9 @@ Server_t * initServer(char *logFileName, char *fifoName, int bankOfficesNo,char 
     requestsQueue = createQueue(server->bankOfficesNo);
     initSynch(server);
     createAdminAccount(server,adminPassword);
+    logSyncDelay(server->sLogFd, MAIN_THREAD_ID, ADMIN_ACCOUNT_ID, 0);
     createBankOffices(server);
-     
+
     server->fifoFd = openFifo(fifoName);
 
     on_exit(closeServer,server);
