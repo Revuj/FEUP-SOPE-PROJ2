@@ -19,8 +19,6 @@ void destroyClient(int status,void *arg)
 {
     client_t *client = (client_t *)arg;
 
-    timer_delete(timerid);
-
     if(client->uLogFd)
         close(client->uLogFd);
 
@@ -335,6 +333,8 @@ int main(int argc, char *argv[]) // USER //ID SENHA ATRASO DE OP OP(NR) STRING
     timer_settime(timerid, 0, &trigger, NULL);
 
     readReply(client);
+
+    timer_delete(timerid);
 
     exit(EXIT_SUCCESS);
 }
