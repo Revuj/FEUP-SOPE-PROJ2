@@ -44,5 +44,4 @@
 #define FIFO_ERROR 6
 #define WRITE_ERROR 7
 #define BALANCE_ERROR 8
-#define POS_ERROR 9
-#define ARG_NUM_ERROR 10
+#define ARG_NUM_ERROR 9

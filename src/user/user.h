@@ -43,9 +43,15 @@ void thread_handler(union sigval sv);
 /**
  * @Brief - Opens a file
  * @param logFileName - name of the file to be opened
- * @return - the descriptor of a file or -1 in case of unsuccess
  */
-int openLogText(char *logFileName);
+void openLogText(client_t *client);
+
+/**
+ * @Brief - creates the fifo that will receive the server's reply
+ * @param client - Client whose reply will be received
+ * @param fifoPrefix - prefix of the fifo's name
+ */
+void createReplyFifo(client_t *client);
 
 /**
  * @Brief  - Creates a client
@@ -64,13 +70,6 @@ void fillServerDownReply(client_t * client);
  * @param client - Client whose request will be sent
  */
 void openRequestFifo(client_t *client);
-
-/**
- * @Brief - creates the fifo that will receive the server's reply
- * @param client - Client whose reply will be received
- * @param fifoPrefix - prefix of the fifo's name
- */
-void createReplyFifo(client_t *client);
 
 /**
  * @Brief - opens the fifo that will receive the server's reply

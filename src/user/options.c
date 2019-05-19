@@ -23,13 +23,9 @@ option_t* init_options() {
 
 static void free_options(int status, void *args) {
     option_t *options = (option_t *)args;
-    printf("freeing password\n");
     free(options->password);
-    printf("freeing arguments\n");
     free(options->operation_arguments);
-    printf("freeing options\n");
     free(options);
-    printf("nice free\n");
 }
 
 static const struct option long_options[] = {
@@ -65,7 +61,6 @@ static void print_numpositional(int n) {
 static void print_badpositional(int i) {
     setlocale(LC_ALL, "");
     wprintf(L"Error: Positional argument #%d is invalid.\n%S", i, usage);
-    exit(POS_ERROR);
 }
 
 static int parse_int(const char* str, int* store) {
