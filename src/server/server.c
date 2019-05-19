@@ -448,7 +448,10 @@ int loginClient(BankOffice_t * bankOffice) {
 }
 //====================================================================================================================================
 void processRequest(BankOffice_t *bankOffice) {
+    activeOfficesLock();
     activeBankOffices++;
+    activeOfficesUnlock();
+
     bankOffice->reply->type = bankOffice->request->type;
     bankOffice->reply->length = sizeof(rep_header_t);
     
@@ -471,7 +474,10 @@ void processRequest(BankOffice_t *bankOffice) {
         default:
             break;
     }
+
+    activeOfficesLock();
     activeBankOffices--;
+    activeOfficesUnlock();
 }
 //====================================================================================================================================
 void *runBankOffice(void *arg)
@@ -479,7 +485,7 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
  
     while (1) {
-        logSyncMechSem(bankOffice->sLogFd,bankOffice->tid,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
+        logSyncMechSem(bankOffice->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
         waitNotEmpty();
         
         if (serverDown && requestsQueue->itemsNo == 0) {

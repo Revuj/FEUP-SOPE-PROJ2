@@ -34,6 +34,20 @@ int bankAccountLock(int id) ;
 int bankAccountUnlock(int id);
 
 /**
+ * @brief Locks activeOffice mutex
+ * 
+ * @return 0 on success or 1 otherwhise
+ */
+int activeOfficesLock();
+
+/**
+ * @brief Unlocks activeOffice mutex
+ * 
+ * @return 0 on success or 1 otherwhise
+ */
+int activeOfficesUnlock();
+
+/**
  * @brief Initializes the notFull semaphore
  * 
  * @param semsNo - initial value of the semaphore
