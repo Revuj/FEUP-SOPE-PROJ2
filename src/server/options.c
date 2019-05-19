@@ -40,7 +40,7 @@ static const char* short_options = "+h";
 // x for no_argument, x: for required_argument, x:: for optional_argument
 
 
-static const wchar_t* usage = L"Usage: ./server <number_of_threads(bank offices)> \"admin password\"\n";
+static const wchar_t* usage = L"Usage: ./server <number_of_threads(bank offices)> <admin password>\n";
 
 static void print_usage() {
     setlocale(LC_ALL, "");
@@ -146,9 +146,9 @@ int parse_args(int argc, char** argv,option_t *options) {
         print_numpositional(num_positional);
     }
 
-    validateArgs(options);
-
     on_exit(free_options,options);
+
+    validateArgs(options);
 
     return 0;
 }

@@ -23,9 +23,13 @@ option_t* init_options() {
 
 static void free_options(int status, void *args) {
     option_t *options = (option_t *)args;
+    printf("freeing password\n");
     free(options->password);
+    printf("freeing arguments\n");
     free(options->operation_arguments);
+    printf("freeing options\n");
     free(options);
+    printf("nice free\n");
 }
 
 static const struct option long_options[] = {
@@ -35,10 +39,16 @@ static const struct option long_options[] = {
 
 static const char* short_options = "+h";
 
-static const wchar_t* usage = L"Usage: user [option] ID password delay operation_code arguments_list\n"
-    "arguments_list is a space-separated string\n"
-    "General:\n"
-    "  -h, --help,           \n";
+static const wchar_t* usage = L"Usage: ./user <option> <account_id> <password> <delay> <operation_code> <arguments_list>\n"
+    "operation_code: 0 - create account (admin only)\n"
+    "                1 - check balance\n"
+    "                2 - transfer money\n"
+    "                3 - shutdown system (admin only)\n\n"
+    "arguments_list is a space-separated string that differs acording to operation_code:\n"
+    "                0 - \"<account_id> <balance> <password\"\n"
+    "                1 - \"\"\n"
+    "                2 - \"<account_id> <money>\"\n"
+    "                3 - \"\"\n";
 
 static void print_usage() {
     setlocale(LC_ALL, "");
@@ -141,9 +151,13 @@ int parse_args(int argc, char** argv,option_t *options) {
         print_numpositional(num_positional);
     }
 
+    on_exit(free_options,options);
+
+    printf("my dude\n");
+
     validateArgs(options);
 
-    on_exit(free_options,options);
+    printf("validate nice\n");
 
     return 0;
 }
