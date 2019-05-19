@@ -51,8 +51,6 @@ void closeBankOffices(int status,void *arg)
     for(int i = 0; i < server->bankOfficesNo; i++) {
         pthread_join(server->eletronicCounter[i]->tid,NULL);
         logBankOfficeClose(server->sLogFd, i+1, server->eletronicCounter[i]->tid);
-        //free(server->eletronicCounter[i]->request);
-        //free(server->eletronicCounter[i]->reply);
         free(server->eletronicCounter[i]);
     }
 }
@@ -485,7 +483,7 @@ void *runBankOffice(void *arg)
     BankOffice_t *bankOffice = (BankOffice_t *)arg;
  
     while (1) {
-        logSyncMechSem(bankOffice->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0,getvalueNotEmpty());
+        logSyncMechSem(bankOffice->sLogFd,bankOffice->orderNr,SYNC_OP_SEM_WAIT,SYNC_ROLE_CONSUMER,0, getvalueNotEmpty());
         waitNotEmpty();
         
         if (serverDown && requestsQueue->itemsNo == 0) {
@@ -646,7 +644,7 @@ void processRequestServer(Server_t *server, tlv_request_t *request) {
 }
 //====================================================================================================================================
 void readRequestServer(Server_t *server) {
-    int n;
+    int n = 0;
     tlv_request_t request;
     while (!serverDown || n != 0)
     {
@@ -661,7 +659,6 @@ void readRequestServer(Server_t *server) {
             close(server->fifoFd);
             openFifo(server);
         }
-        printf("bad read boy\n");
     }
 
     while(requestsQueue->itemsNo) {
@@ -675,7 +672,6 @@ void readRequestServer(Server_t *server) {
 //====================================================================================================================================
 int main(int argc, char **argv)
 {
-    
     option_t *options = init_options();
 
     parse_args(argc,argv,options);
