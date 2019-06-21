@@ -1,2 +1,2 @@
-# FEUP-SOPE-PROJ2
-//O melhor projeto de sempre 
+This project was made for the course: SOPE and it consists of a program that simulates the functions of a bank (server) and its various clients (users), using a server-users structure.
+The bank runs threads and wich one simulates a bank office that processes requests from a buffer that is filled by the users (using producer-consumer). Any bank office needs to access the server's bank accounts to make operations such as: account creation, balance checking, transference, close server (only possible by administrator). To make this operations work correctly and smoothly and to avoid dead locks we use a variety of synchronization mechanisms.
